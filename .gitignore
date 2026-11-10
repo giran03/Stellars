@@ -1,0 +1,58 @@
+# Dependencies and build output
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+
+# Installers are published through GitHub Releases, not committed
+release/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa*
+credentials*.json
+service-account*.json
+secrets.*
+*.secret
+.npmrc
+.netrc
+
+# Local databases and dumps
+*.sqlite
+*.db
+
+# Logs, temp and backup files
+*.log
+*.tmp
+*.bak
+*.swp
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Local tooling, recovery and agent output (kept on this machine only)
+.claude/
+CLAUDE.md
+.impeccable/
+.recovery-*
+.ruff_cache/
+graphify-out/
+videos/
+test_icon.ico
+
+# Test and coverage output
+coverage/
+playwright-report/
+test-results/

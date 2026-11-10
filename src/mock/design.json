@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-08T04:30:33.295876+00:00",
+  "title": "Design System: Stellars Studio Preview",
+  "extensions": {
+    "colorMeta": {
+      "violet": {
+        "role": "primary",
+        "displayName": "Soft violet"
+      },
+      "teal": {
+        "role": "secondary",
+        "displayName": "Signal teal"
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Charcoal canvas"
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Raised charcoal"
+      },
+      "stream-blue": {
+        "role": "secondary",
+        "displayName": "Stream sky blue"
+      },
+      "stream-title": {
+        "role": "secondary",
+        "displayName": "Stream heading blue"
+      },
+      "stream-save": {
+        "role": "secondary",
+        "displayName": "Stream action blue"
+      }
+    },
+    "typographyMeta": {
+      "headline": {
+        "displayName": "Page headline",
+        "purpose": "Medium-weight introductory heading; responsive sizes are documented in DESIGN.md."
+      },
+      "readout": {
+        "displayName": "Channel readout",
+        "purpose": "Tabular numerals for dB and monitor level."
+      },
+      "control-label": {
+        "displayName": "Control label",
+        "purpose": "Shared dropdown trigger."
+      },
+      "option": {
+        "displayName": "Dropdown option",
+        "purpose": "Shared listbox choices."
+      },
+      "tooltip": {
+        "displayName": "Tooltip",
+        "purpose": "Compact multiline contextual help."
+      }
+    },
+    "shadows": [
+      {
+        "name": "channel",
+        "value": "0 7px 16px #00000012",
+        "purpose": "Subtle ambient depth beneath a channel."
+      },
+      {
+        "name": "active-channel",
+        "value": "inset 0 1px 0 #d0b5ff3d,0 7px 16px #0002",
+        "purpose": "Selected channel edge highlight."
+      },
+      {
+        "name": "fader-recess",
+        "value": "inset 1px 1px 3px #0008",
+        "purpose": "Recessed fader track."
+      },
+      {
+        "name": "toast",
+        "value": "0 8px 28px #0005",
+        "purpose": "Transient status above the workspace."
+      },
+      {
+        "name": "select-menu",
+        "value": "0 8px 28px #0006",
+        "purpose": "Portal dropdown surface."
+      },
+      {
+        "name": "range-hint",
+        "value": "0 8px 28px #0004",
+        "purpose": "Numeric range/validation popup."
+      },
+      {
+        "name": "tooltip",
+        "value": "0 8px 28px #0003",
+        "purpose": "Soft help-surface elevation."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(.22,1,.36,1)",
+        "purpose": "Entrance, hover and drawer easing."
+      },
+      {
+        "name": "channel-arrive",
+        "value": "420ms; translateY(8px) to 0; 45ms stagger",
+        "purpose": "Initial channel appearance."
+      },
+      {
+        "name": "app-hover",
+        "value": "180ms; translateY(-2px)",
+        "purpose": "Small draggable-app hover lift."
+      },
+      {
+        "name": "drawer",
+        "value": "250ms; translateY(-5px) to 0",
+        "purpose": "Hardware and Stream drawer entrance."
+      },
+      {
+        "name": "meter-tick",
+        "value": "110ms",
+        "purpose": "Simulated activity timer; paused when hidden or stopped by user."
+      },
+      {
+        "name": "stream-stereo",
+        "value": "110ms linear",
+        "purpose": "Independent simulated Stream bar width updates."
+      },
+      {
+        "name": "shared-control",
+        "value": "150ms ease-out",
+        "purpose": "Trigger/precise-control state transitions and tooltip entrance; disabled under reduced motion."
+      },
+      {
+        "name": "tooltip-delay",
+        "value": "80ms",
+        "purpose": "Pointer/focus help delay."
+      },
+      {
+        "name": "menu-entrance",
+        "value": "150ms cubic-bezier(.22,1,.36,1); translateY(-4px) scale(.985) to identity",
+        "purpose": "Portal menu appearance; disabled under reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-min",
+        "value": "1600px"
+      },
+      {
+        "name": "compact-max",
+        "value": "1250px"
+      },
+      {
+        "name": "single-column-max",
+        "value": "1050px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "720px"
+      },
+      {
+        "name": "narrow-max",
+        "value": "410px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Save settings",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Commits the Stream settings draft.",
+      "html": "<button class=\"ds-save\">Save settings</button>",
+      "css": ".ds-save{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;cursor:pointer;border:0;background:#cdb4f3;color:#231a2d;padding:9px 14px;border-radius:7px}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #87ddcf;outline-offset:4px}"
+    },
+    {
+      "name": "Quiet button",
+      "kind": "button",
+      "refersTo": "button-quiet",
+      "description": "Secondary console actions.",
+      "html": "<button class=\"ds-quiet\">Mix settings</button>",
+      "css": ".ds-quiet{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;cursor:pointer;border:0;background:#29282e;color:#d5d2df;padding:9px 12px;border-radius:8px;min-height:32px;transition:background .2s}.ds-quiet:hover{background:#39353f}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #87ddcf;outline-offset:4px}"
+    },
+    {
+      "name": "Search",
+      "kind": "input",
+      "description": "App-name and executable search.",
+      "html": "<label class=\"ds-search\"><svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" aria-hidden=\"true\"><path d=\"M21 21l-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z\"/></svg><input aria-label=\"Search audio apps\" placeholder=\"Find an app…\"></label>",
+      "css": ".ds-search{display:flex;gap:8px;align-items:center;background:#11111480;border-radius:9px;padding:10px 11px;color:#8f899b}.ds-search input{font:10px \"Plus Jakarta Sans\",sans-serif;min-width:0;width:100%;border:0;background:transparent;color:#eee7f8;caret-color:#87ddcf}.ds-search input::placeholder{color:#a49aad}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #87ddcf;outline-offset:4px}"
+    },
+    {
+      "name": "Rail item",
+      "kind": "nav",
+      "refersTo": "rail-button",
+      "description": "Current Mixer section link; the live preview marker is static.",
+      "html": "<a class=\"ds-nav\" href=\"#mixer\" aria-label=\"Mixer\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M5 3v18M12 3v18M19 3v18M2 8h6M9 16h6M16 8h6\"/></svg></a>",
+      "css": ".ds-nav{width:44px;height:44px;display:grid;place-items:center;border-radius:14px;color:#16131e;background:#d1c2fc;box-shadow:0 5px 16px #0003;text-decoration:none}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #87ddcf;outline-offset:4px}"
+    },
+    {
+      "name": "Included source",
+      "kind": "chip",
+      "description": "Selected Stream source chip.",
+      "html": "<button class=\"ds-source\" aria-pressed=\"true\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.65\" aria-hidden=\"true\"><path d=\"m5 12 4 4L19 6\"/></svg>Game</button>",
+      "css": ".ds-source{font-family:'Plus Jakarta Sans',sans-serif;font-size:10px;cursor:pointer;border:0;display:flex;align-items:center;gap:5px;border-radius:7px;background:#bd9eef;color:#22192d;padding:8px 12px}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #87ddcf;outline-offset:4px}"
+    },
+    {
+      "name": "Panel",
+      "kind": "card",
+      "refersTo": "panel",
+      "description": "Quiet charcoal container; representative ChatMix padding.",
+      "html": "<section class=\"ds-panel\"><h3>ChatMix</h3><p>Game and Chat balance</p></section>",
+      "css": ".ds-panel{background:#1c1c20;border-radius:16px;padding:16px 18px;color:#eeebf5;font-family:\"Plus Jakarta Sans\",sans-serif}.ds-panel h3{font-size:12px;font-weight:600;margin:0}.ds-panel p{font-size:9px;color:#bab3c9;margin:17px 0 9px}"
+    },
+    {
+      "name": "Dynamics switch",
+      "kind": "custom",
+      "description": "On-state noise-gate/compressor toggle.",
+      "html": "<button class=\"ds-switch\" aria-label=\"Noise gate\" aria-pressed=\"true\"><span></span></button>",
+      "css": ".ds-switch{width:30px;height:17px;min-width:30px;border:0;border-radius:20px;padding:3px;display:flex;align-items:center;background:#bca2f6;cursor:pointer;transition:background .2s}.ds-switch span{width:11px;height:11px;border-radius:50%;background:#282031;transform:translateX(13px);transition:transform .2s cubic-bezier(.22,1,.36,1)}button:focus-visible,input:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid #87ddcf;outline-offset:4px}"
+    },
+    {
+      "name": "Stream panel",
+      "kind": "card",
+      "description": "Independent output between playback and DSP, with its own simulated stereo activity.",
+      "html": "<section class=\"ds-stream\"><h2>Stream <span>Preview</span></h2><p>Independent from your headphones</p><div class=\"ds-stream-meter\" role=\"meter\" aria-label=\"Simulated Stream peak\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"54\"><i></i><i></i></div></section>",
+      "css": ".ds-stream{background:linear-gradient(115deg,#1d2530,#1c1e24 65%);border-radius:16px;padding:20px 23px;font-family:\"Plus Jakarta Sans\",sans-serif}.ds-stream h2{color:#b6dfff;font-size:16px;font-weight:600;margin:0}.ds-stream h2 span{color:#a7dcff;background:#8bcfff14;border-radius:5px;padding:3px 7px;font-size:8px;font-weight:400}.ds-stream p{color:#b0a2bf;font-size:9px;line-height:1.6}.ds-stream-meter{display:grid;gap:3px;background:#0002;border-radius:3px;overflow:hidden;margin-top:11px;height:8px}.ds-stream-meter i{height:2px;width:54%;background:#9bd6ff;border-radius:2px}.ds-stream-meter i+i{width:47.52%}"
+    },
+    {
+      "name": "Stream Save settings",
+      "kind": "button",
+      "refersTo": "button-stream-save",
+      "description": "Commits source, override, destination and enabled drafts after endpoint validation.",
+      "html": "<button class=\"ds-stream-save\">Save settings</button>",
+      "css": ".ds-stream-save{font:10px \"Plus Jakarta Sans\",sans-serif;background:#a9d8f8;color:#231a2d;padding:9px 14px;border:0;border-radius:7px;cursor:pointer}.ds-stream-save:focus-visible{outline:2px solid #87ddcf;outline-offset:4px}.ds-stream-save:disabled{opacity:.4;cursor:not-allowed}"
+    },
+    {
+      "name": "Shared dropdown",
+      "kind": "custom",
+      "refersTo": "select-trigger",
+      "description": "Representative open combobox/listbox styling; production StudioSelect supplies portal placement, keyboard and typeahead behavior.",
+      "html": "<button class=\"ds-select\" role=\"combobox\" aria-expanded=\"true\" aria-controls=\"ds-options\">Game <svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" aria-hidden=\"true\"><path d=\"m6 9 6 6 6-6\"/></svg></button><div id=\"ds-options\" class=\"ds-menu\" role=\"listbox\" aria-label=\"Route\"><button role=\"option\" aria-selected=\"true\">Game</button><button role=\"option\" aria-selected=\"false\">Chat</button></div>",
+      "css": ".ds-select{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#2b2632;color:#dfd4eb;border:0;border-radius:8px;padding:9px 11px;font:400 11px/1.5 \"Plus Jakarta Sans\",sans-serif;cursor:pointer}.ds-select:hover{background:#383040}.ds-select:focus-visible,.ds-menu button:focus-visible{outline:2px solid #87ddcf;outline-offset:3px}.ds-menu{background:#29242f;color:#eee5f7;padding:6px;border-radius:12px;box-shadow:0 8px 28px #0006;max-width:240px;margin-top:8px}.ds-menu button{display:flex;width:100%;min-height:36px;border:0;border-radius:7px;padding:9px 11px;background:transparent;color:#dfd3ec;font:500 12px/1.5 \"Plus Jakarta Sans\",sans-serif;cursor:pointer}.ds-menu button:hover{background:#b8a1fa1c;color:#f5edff}.ds-menu button[aria-selected=true]{background:#b8a1fa12;color:#d9c7ff}"
+    },
+    {
+      "name": "Precise numeric editor",
+      "kind": "input",
+      "description": "Representative numeric field with range hint. Readouts and edited values use at most two decimals, percentages whole numbers; bounds remain enforced. Arrow nudges use field step with minimum 0.01, or 1 for percentages; untouched internal values retain precision.",
+      "html": "<label class=\"ds-precise-label\">Pre-gain <input class=\"ds-precise\" aria-label=\"Edit pre-gain\" value=\"0.13\" inputmode=\"decimal\" aria-describedby=\"ds-range\"></label><div id=\"ds-range\" class=\"ds-range\">−12 to 12 dB · Enter to apply · Esc to cancel</div>",
+      "css": ".ds-precise-label{font:400 11px \"Plus Jakarta Sans\",sans-serif;color:#dfd4eb}.ds-precise{font:inherit;color:#f0e7fa;background:#32283f;border:1px solid #b8a1fa;border-radius:5px;padding:2px 5px;min-height:24px;width:8ch;caret-color:#87ddcf}.ds-precise:focus-visible{outline:2px solid #87ddcf;outline-offset:3px}.ds-range{max-width:240px;margin-top:8px;padding:9px 11px;border-radius:8px;background:#302936;color:#dcd0e8;font:400 10px/1.6 \"Plus Jakarta Sans\",sans-serif;box-shadow:0 8px 28px #0004}"
+    },
+    {
+      "name": "Context tooltip",
+      "kind": "custom",
+      "refersTo": "tooltip",
+      "description": "Studio material adapted from CafeTako interaction-tooltip; portal behavior lives in StudioTooltips.",
+      "html": "<div class=\"ds-tooltip\" role=\"tooltip\">Q controls filter width. Higher values affect a narrower frequency range.</div>",
+      "css": ".ds-tooltip{position:relative;max-width:240px;padding:11px 13px;border-radius:10px;background:#302936;color:#e6dced;font:400 11px/1.65 \"Plus Jakarta Sans\",sans-serif;box-shadow:0 8px 28px #0003}.ds-tooltip:after{content:\"\";position:absolute;width:8px;height:8px;left:calc(50% - 4px);top:-4px;background:#302936;transform:rotate(45deg)}"
+    }
+  ],
+  "narrative": {
+    "overview": "This document describes only the isolated `?mock` prototype in `src/mock`. The live console retains the root design system until a separate integration decision.\n\nThe approved direction pairs rounded charcoal surfaces with violet and teal, dense audio controls, dot-matrix activity and restrained animation. The user-supplied black healthcare dashboard informed the visual composition; the shipped screen expresses Stellars' five audio buses and independent Stream mix. This is an interactive design preview with simulated data.",
+    "keyCharacteristics": [
+      "Rounded, tonally separated surfaces with subtle light at their upper edges.",
+      "Quiet typography, tabular audio readouts and compact labels.",
+      "Persistent channel colors connecting routing, selection and EQ.",
+      "Small entrance and hover movements, with reduced-motion support."
+    ],
+    "rules": [
+      {
+        "name": "The Channel Identity Rule",
+        "body": "Keep a bus color consistent across its meter, route label and EQ preview.",
+        "section": "colors"
+      },
+      {
+        "name": "The Precise Entry Rule",
+        "body": "Numeric readouts and edited values use at most two decimal places; percentages round to whole numbers. Field bounds remain authoritative, and slider step does not quantize typed entries.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do preserve channel identity across routing, meters and EQ.",
+      "Do use shared keyboard controls and visible focus alongside drag routing.",
+      "Do retain responsive wrapping, reduced-motion behavior and explicit meter pause.",
+      "Do label illustrative activity and device names as demo data."
+    ],
+    "donts": [
+      "Don't present the preview curve or meter values as measured audio.",
+      "Don't apply this prototype's tokens to the live console without a separate integration decision.",
+      "Don't embed the inspiration screenshot or review screenshots in the product UI."
+    ]
+  }
+}

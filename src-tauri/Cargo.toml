@@ -1,0 +1,70 @@
+[package]
+name = "stellars"
+version = "1.0.0"
+description = "Stellars — Lightweight Rust + Tauri Multi-Bus Audio Router & DSP Mixer"
+authors = ["Stellars"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rtrb = "0.3"
+windows = { version = "0.58", features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_Media",
+    "Win32_Media_Audio",
+    "Win32_Media_KernelStreaming",
+    "Win32_Media_Multimedia",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_WinRT",
+    "Win32_System_Threading",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_Devices_FunctionDiscovery",
+    "Win32_Security",
+    "Win32_System_Registry",
+    "Win32_UI_WindowsAndMessaging",
+] }
+windows-core = "0.58"
+nnnoiseless = { version = "0.5.2", default-features = false }
+deep-filter-rt = "0.2"
+ndarray = "0.17"
+
+# DeepFilterNet3 runs a neural network; unoptimised dev builds are ~10x too slow for real time.
+[profile.dev.package.deep-filter-rt]
+opt-level = 3
+[profile.dev.package.tract-core]
+opt-level = 3
+[profile.dev.package.tract-onnx]
+opt-level = 3
+[profile.dev.package.tract-pulse]
+opt-level = 3
+[profile.dev.package.tract-hir]
+opt-level = 3
+[profile.dev.package.tract-nnef]
+opt-level = 3
+[profile.dev.package.tract-data]
+opt-level = 3
+[profile.dev.package.tract-linalg]
+opt-level = 3
+[profile.dev.package.ndarray]
+opt-level = 3
+[profile.dev.package.realfft]
+opt-level = 3
+[profile.dev.package.rustfft]
+opt-level = 3
+[profile.dev.package.nnnoiseless]
+opt-level = 3
+
+# Smaller, faster release binaries: whole-program optimisation, one codegen unit, no symbols.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+opt-level = 3
