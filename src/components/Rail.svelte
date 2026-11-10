@@ -3,9 +3,6 @@
   import StudioIcon from "./StudioIcon.svelte";
 
   interface Props {
-    /** The desktop engine is connected (false in the browser preview). */
-    connected: boolean;
-    engineRunning: boolean;
     streamEnabled: boolean;
     streamRunning: boolean;
     /** Number of apps currently producing audio. */
@@ -15,7 +12,7 @@
     onScrollTop: (e?: MouseEvent) => void;
   }
 
-  let { connected, engineRunning, streamEnabled, streamRunning, appCount, settingsOpen, onOpenSettings, onScrollTop }: Props = $props();
+  let { streamEnabled, streamRunning, appCount, settingsOpen, onOpenSettings, onScrollTop }: Props = $props();
 
   const ITEMS = [
     { id: "mixer", label: "Mixer", icon: "mix", tip: "Mixer · channel faders and meters" },
@@ -113,12 +110,6 @@
   });
 
   const streamBadge = $derived(!streamEnabled ? null : streamRunning ? "live" : "warn");
-  const engineState = $derived(!connected ? "preview" : engineRunning ? "running" : "standby");
-  /** The label says where the button leads; the dot shows engine state. */
-  const engineLabel = "Audio";
-  const engineTip = $derived(
-    engineState === "running" ? "Audio settings · engine running" : engineState === "standby" ? "Audio settings · engine on standby" : "Audio settings · browser preview, open the desktop app to route audio"
-  );
 </script>
 
 <aside class="rail" aria-label="Console navigation">
@@ -144,11 +135,6 @@
     <button type="button" class="rail-item" class:chosen={settingsOpen} aria-label="Settings" aria-haspopup="dialog" aria-expanded={settingsOpen}
       data-placement="right" data-tooltip="Settings (,)" onclick={() => onOpenSettings()}>
       <span class="icon"><StudioIcon name="settings" size={20} /></span><span class="label">Settings</span>
-    </button>
-    <button type="button" class="rail-item engine" data-state={engineState} aria-label={engineTip} data-placement="right" data-tooltip={engineTip}
-      onclick={() => onOpenSettings("audio")}>
-      <span class="icon"><StudioIcon name="headphones" size={20} /><i class={"dot " + (engineState === "running" ? "live" : engineState === "standby" ? "warn" : "idle")} aria-hidden="true"></i></span>
-      <span class="label">{engineLabel}</span>
     </button>
   </div>
 </aside>
@@ -186,8 +172,6 @@
   .dot { position: absolute; top: -3px; right: -5px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--page, #111113); background: #6f667c; box-sizing: content-box; }
   .dot.live { background: var(--teal, #7be1d1); box-shadow: 0 0 8px color-mix(in srgb, var(--teal, #7be1d1) 70%, transparent); }
   .dot.warn { background: var(--amber, #edc990); }
-  .engine[data-state="running"] { color: var(--teal, #7be1d1); }
-  .engine[data-state="standby"] { color: var(--amber, #edc990); }
   .count { position: absolute; top: -6px; right: -10px; min-width: 15px; height: 15px; padding: 0 4px; border-radius: 8px; display: grid; place-items: center; font-size: 9px; font-weight: 700; color: var(--on-violet, #1b1426); background: var(--violet, #b8a1fa); font-variant-numeric: tabular-nums; }
 
   @media (max-width: 720px) {

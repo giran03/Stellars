@@ -1560,8 +1560,6 @@
 
 <div class="studio live-studio">
   <Rail
-    connected={isTauriConnected}
-    engineRunning={diagnostics.masterRunning}
     streamEnabled={config.stream.enabled}
     streamRunning={meters.streamRunning}
     appCount={processes.length}

@@ -71,4 +71,5 @@ All notable changes to Stellars are recorded here, newest version first.
 
 ### Removed
 - The redundant Audio Settings button in the header.
+- The Audio button at the bottom of the sidebar; audio settings are still under Settings > Audio.
 - The Virtual mic output Left/Right level feature. Old config files that still contain those values load normally.
