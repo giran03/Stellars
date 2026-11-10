@@ -179,6 +179,8 @@ fn show_or_recreate_main_window(app: &AppHandle) {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
+        // Resize events fired while restoring can briefly mark it hidden; it is visible now.
+        set_main_window_hidden(app, false);
     } else {
         // Recreate the WebView2 window on demand after it was destroyed on close
         if let Ok(window) = WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
@@ -192,6 +194,7 @@ fn show_or_recreate_main_window(app: &AppHandle) {
         {
             let _ = window.show();
             let _ = window.set_focus();
+            set_main_window_hidden(app, false);
         }
     }
 }
@@ -248,6 +251,8 @@ fn handle_close_and_minimize(window: &tauri::Window, event: &tauri::WindowEvent)
         state.meter_pacing.set_window_hidden(hidden);
     }
     match event {
+        // Only a visible window can be focused, so this always clears a stuck "hidden" state.
+        tauri::WindowEvent::Focused(true) => state.meter_pacing.set_window_hidden(false),
         tauri::WindowEvent::CloseRequested { .. }
             if settings.close_behavior == CloseBehavior::Quit =>
         {

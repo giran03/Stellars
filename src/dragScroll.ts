@@ -18,7 +18,8 @@ const MAX_FRAME_MS = 50;
 const SKIP_SELECTOR =
   'a, button, input, select, textarea, label, canvas, video, audio, summary, [contenteditable="true"], ' +
   '[draggable="true"], [role="slider"], [role="button"], [role="switch"], [role="menuitem"], ' +
-  '[data-tauri-drag-region]:not([data-tauri-drag-region="false"]), [data-no-dragscroll]';
+  '[data-tauri-drag-region]:not([data-tauri-drag-region="false"]), [data-no-dragscroll], ' +
+  'pre, code, .error, [data-selectable]';
 // A cursor other than these means the element handles its own mouse interaction (faders, resize...).
 const PLAIN_CURSORS = new Set(["auto", "default"]);
 

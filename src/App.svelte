@@ -1322,7 +1322,10 @@
 
   let backgroundSaver: BackgroundSaver | null = null;
   $effect(() => {
-    backgroundSaver?.setEnabled(appSettings.saveResourcesInBackground);
+    // Read first: with the saver still null the optional call would skip reading it, and the
+    // effect would never re-run when the setting loads or changes.
+    const enabled = appSettings.saveResourcesInBackground;
+    backgroundSaver?.setEnabled(enabled);
   });
 
   onMount(() => {

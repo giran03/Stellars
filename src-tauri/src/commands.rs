@@ -805,7 +805,9 @@ pub fn subscribe_peak_meters(
 /// How often the UI wants meter snapshots (60 focused, lower when unfocused). Never touches audio.
 #[tauri::command]
 pub fn set_meter_rate(state: State<'_, AppState>, hz: u32) {
-    state.meter_pacing.set_requested_hz(hz);
+    // Never 0 from the UI: a stale "hidden" signal there must not freeze a visible window. The
+    // window-hidden flag on the Rust side is what stops the stream entirely.
+    state.meter_pacing.set_requested_hz(hz.max(1));
 }
 
 #[tauri::command]

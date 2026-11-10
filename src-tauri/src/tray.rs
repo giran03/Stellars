@@ -262,7 +262,7 @@ pub fn hide_popup(app: &AppHandle) {
             return;
         }
         if let Some(window) = app.get_webview_window(LABEL) {
-            if !window.is_visible().unwrap_or(false) {
+            if !window.is_visible().unwrap_or(false) && HIDE_GENERATION.load(Ordering::SeqCst) == generation {
                 let _ = window.destroy();
             }
         }
@@ -323,8 +323,10 @@ pub fn tray_menu_hide(app: AppHandle) {
     hide_popup(&app);
 }
 
+/// Async on purpose: "open" may have to create the main window, and creating a window from a sync
+/// command can deadlock on Windows.
 #[tauri::command]
-pub fn tray_menu_action(app: AppHandle, action: String) {
+pub async fn tray_menu_action(app: AppHandle, action: String) {
     hide_popup(&app);
     match action.as_str() {
         "open" => crate::show_or_recreate_main_window(&app),
