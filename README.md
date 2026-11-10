@@ -17,6 +17,10 @@
 
 Stellars is a multi-bus audio router and mixer for Windows. It sorts your apps into five channels (Game, Chat, Media, Aux and Mic), lets you balance and process each one live, and can send a separate mix to your stream or recording software. It runs entirely in user mode and installs no kernel driver of its own.
 
+<p align="center">
+  <img src="docs/media/stellars-showcase-16x9.gif" alt="Stellars in action: dragging Discord into the Chat channel, balancing Game and Chat with ChatMix, switching the EQ to FPS Footsteps, turning on the noise gate and the Stream mix" width="100%">
+</p>
+
 ## Features
 
 ### Routing
