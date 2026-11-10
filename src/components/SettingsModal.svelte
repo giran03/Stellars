@@ -71,11 +71,12 @@
   const DEVELOPER = "CafeTako";
   const SUPPORT_EMAIL = "support@cafetako.com";
   const DONATION_URL = "https://buymeacoffee.com/cafetako";
-  /**
-   * JSON feed describing the latest release: `{ "version": "1.2.3", "url": "https://…", "notes": "…" }`.
-   * TODO: placeholder. Set this once the update repository exists; until then the Updates tab shows "coming soon".
-   */
-  const UPDATE_FEED_URL = "";
+  /** Updates are read from the latest GitHub release of this repository. */
+  const RELEASES_REPO = "giran03/Stellars";
+  const LATEST_RELEASE_URL = `https://api.github.com/repos/${RELEASES_REPO}/releases/latest`;
+  /** Beta channel: newest release of any kind, including pre-releases. */
+  const RECENT_RELEASES_URL = `https://api.github.com/repos/${RELEASES_REPO}/releases?per_page=10`;
+  const RELEASE_PAGE_PREFIX = `https://github.com/${RELEASES_REPO}/`;
   /** Version from package.json (injected at build time); the desktop app replaces it with the native one. */
   const FALLBACK_VERSION = __APP_VERSION__;
 
@@ -113,7 +114,6 @@
   type UpdateState =
     | { kind: "idle" }
     | { kind: "checking" }
-    | { kind: "unconfigured" }
     | { kind: "current" }
     | { kind: "available"; version: string; url?: string; notes?: string }
     | { kind: "error"; message: string };
@@ -212,20 +212,40 @@
     return false;
   }
 
+  type GithubRelease = { tag_name?: string; html_url?: string; body?: string; draft?: boolean };
+
+  /** The newest published release for the chosen channel, or null when none exists. */
+  async function fetchLatestRelease(channel: AppSettings["updateChannel"]): Promise<GithubRelease | null> {
+    const res = await fetch(channel === "beta" ? RECENT_RELEASES_URL : LATEST_RELEASE_URL, {
+      cache: "no-store",
+      headers: { Accept: "application/vnd.github+json" },
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
+    const data: unknown = await res.json();
+    if (Array.isArray(data)) return (data as GithubRelease[]).find((r) => !r.draft && r.tag_name) ?? null;
+    return (data as GithubRelease) ?? null;
+  }
+
+  /** Plain, short version of the release notes for the status line. */
+  function summarizeNotes(body: string | undefined): string | undefined {
+    const text = (body ?? "").replace(/<[^>]*>/g, " ").replace(/[#*_`>\[\]]/g, "").replace(/\s+/g, " ").trim();
+    if (!text) return undefined;
+    return text.length > 220 ? `${text.slice(0, 217)}…` : text;
+  }
+
   async function checkForUpdates() {
     if (update.kind === "checking") return;
-    if (!UPDATE_FEED_URL) {
-      update = { kind: "unconfigured" };
-      return;
-    }
     update = { kind: "checking" };
     try {
-      const res = await fetch(`${UPDATE_FEED_URL}?channel=${appSettings.updateChannel}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`Update server answered ${res.status}`);
-      const feed = (await res.json()) as { version?: string; url?: string; notes?: string };
-      if (!feed.version) throw new Error("Update feed has no version");
-      update = isNewer(feed.version, appVersion)
-        ? { kind: "available", version: feed.version, url: feed.url, notes: feed.notes }
+      const release = await fetchLatestRelease(appSettings.updateChannel);
+      if (!release?.tag_name) {
+        update = { kind: "error", message: "No published release was found." };
+        return;
+      }
+      const url = release.html_url?.startsWith(RELEASE_PAGE_PREFIX) ? release.html_url : `${RELEASE_PAGE_PREFIX}releases/latest`;
+      update = isNewer(release.tag_name, appVersion)
+        ? { kind: "available", version: release.tag_name.replace(/^v/i, ""), url, notes: summarizeNotes(release.body) }
         : { kind: "current" };
       await save({ lastUpdateCheck: new Date().toISOString() });
     } catch (err) {
@@ -517,8 +537,6 @@
               </div>
               {#if update.kind === "current"}
                 <p class="update-status ok" role="status">You’re up to date.</p>
-              {:else if update.kind === "unconfigured"}
-                <p class="update-status" role="status">Automatic updates are coming soon. For now, new versions are announced through the support channels listed in About.</p>
               {:else if update.kind === "available"}
                 <div class="update-status ok" role="status">
                   <strong>Version {update.version} is available.</strong>

@@ -56,6 +56,7 @@ All notable changes to Stellars are recorded here, newest version first.
 - Fine-tune heading and padding match Channel processing.
 - Tray icon right-click menu is now a styled popup that follows the app's light/dark theme, opens beside the tray icon (above the taskbar, like Steam or Discord) without covering it, closes when you click elsewhere or press Esc, and shows whether all channels are muted.
 - Text in labels, descriptions and other interface text can no longer be highlighted; text fields, error messages and log/code blocks remain selectable.
+- Check for updates (Settings > Updates) now looks at the latest release published on the Stellars GitHub page, and the Download button opens that release. The Beta channel also considers pre-releases.
 - About page: the developer description now reads "Designed and built by CafeTako Team".
 - Fine-tune effect cards size to their content and pack tightly, with the same gap between cards in both directions.
 - Cleaner interface: removed taglines and repeated explanations (page slogan, "Made for the way you listen", section notes, routing and Fine-tune intro lines, duplicate EQ hints, "Not used on this channel" and the Plain setup descriptions, and the placeholder note in Updates).
