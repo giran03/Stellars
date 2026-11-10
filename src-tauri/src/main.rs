@@ -268,7 +268,23 @@ fn handle_close_and_minimize(window: &tauri::Window, event: &tauri::WindowEvent)
     }
 }
 
+/// `stellars.exe --setup-cables`, run by the installer: sets up the virtual audio cables and exits
+/// without opening a window or starting the audio engine.
+fn run_cable_setup_and_exit() {
+    if let Some(dir) = RouterConfig::default_config_path().parent() {
+        logging::init(dir);
+    }
+    logging::info("Installer: setting up virtual audio cables");
+    for line in interop::cables::run_installer_setup() {
+        logging::info(&format!("Installer: {line}"));
+    }
+}
+
 fn main() {
+    if interop::cables::is_setup_invocation(std::env::args()) {
+        run_cable_setup_and_exit();
+        return;
+    }
     let app = tauri::Builder::default()
         .setup(|app| {
             let config_path = RouterConfig::default_config_path();

@@ -821,6 +821,26 @@ pub fn auto_assign_virtual_routes(
     actions
 }
 
+/// Command-line flag the installer uses to set up the virtual cables without opening the app.
+pub const SETUP_CABLES_FLAG: &str = "--setup-cables";
+
+/// True when the process was started by the installer to set up the virtual cables.
+pub fn is_setup_invocation<I: IntoIterator<Item = String>>(args: I) -> bool {
+    args.into_iter().skip(1).any(|a| a == SETUP_CABLES_FLAG)
+}
+
+/// Headless setup run by the installer: installs VB-CABLE and the Hi-Fi Cable when missing and
+/// applies the Stellars endpoint names. The installer is already elevated, so no extra prompt is
+/// needed. Returns a log of what happened; it never panics so the installation can always finish.
+pub fn run_installer_setup() -> Vec<String> {
+    let mut actions = match run_elevated_vbcable_installer(true, false) {
+        Ok((actions, _reboot_recommended)) => actions,
+        Err(err) => vec![format!("Virtual cable setup failed: {err}")],
+    };
+    actions.extend(apply_system_virtual_cable_names(&RouterConfig::default()));
+    actions
+}
+
 fn driver_staging_dir() -> PathBuf {
     if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
         PathBuf::from(local_app_data)
@@ -1222,6 +1242,15 @@ mod tests {
             Some("ep-headphones"),
             "Physical headphones must be pinned when Windows switches default to VB-CABLE"
         );
+    }
+
+    #[test]
+    fn setup_flag_is_detected_only_after_the_program_name() {
+        let args = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(is_setup_invocation(args(&["stellars.exe", "--setup-cables"])));
+        assert!(!is_setup_invocation(args(&["stellars.exe"])));
+        assert!(!is_setup_invocation(args(&["--setup-cables"])));
+        assert!(!is_setup_invocation(args(&["stellars.exe", "--other"])));
     }
 
     #[test]

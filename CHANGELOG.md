@@ -68,6 +68,7 @@ All notable changes to Stellars are recorded here, newest version first.
 - The audio underrun counter never counted; it now counts real gaps.
 - Left-clicking the tray icon no longer opens the context menu (it opens the window; right-click shows the menu).
 - The Stream badge in the sidebar now disappears when the Stream mix is turned off and returns when it is turned on.
+- The installer now also names the virtual audio cables it installs (Stellars - Microphone, Stellars - Stream Mix), instead of leaving that to the first launch.
 
 ### Removed
 - The redundant Audio Settings button in the header.
