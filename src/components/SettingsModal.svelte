@@ -74,8 +74,6 @@
   /** Updates are read from the latest GitHub release of this repository. */
   const RELEASES_REPO = "giran03/Stellars";
   const LATEST_RELEASE_URL = `https://api.github.com/repos/${RELEASES_REPO}/releases/latest`;
-  /** Beta channel: newest release of any kind, including pre-releases. */
-  const RECENT_RELEASES_URL = `https://api.github.com/repos/${RELEASES_REPO}/releases?per_page=10`;
   const RELEASE_PAGE_PREFIX = `https://github.com/${RELEASES_REPO}/`;
   /** Version from package.json (injected at build time); the desktop app replaces it with the native one. */
   const FALLBACK_VERSION = __APP_VERSION__;
@@ -212,19 +210,17 @@
     return false;
   }
 
-  type GithubRelease = { tag_name?: string; html_url?: string; body?: string; draft?: boolean };
+  type GithubRelease = { tag_name?: string; html_url?: string; body?: string };
 
-  /** The newest published release for the chosen channel, or null when none exists. */
-  async function fetchLatestRelease(channel: AppSettings["updateChannel"]): Promise<GithubRelease | null> {
-    const res = await fetch(channel === "beta" ? RECENT_RELEASES_URL : LATEST_RELEASE_URL, {
+  /** The repository's latest published release, or null when none exists. */
+  async function fetchLatestRelease(): Promise<GithubRelease | null> {
+    const res = await fetch(LATEST_RELEASE_URL, {
       cache: "no-store",
       headers: { Accept: "application/vnd.github+json" },
     });
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
-    const data: unknown = await res.json();
-    if (Array.isArray(data)) return (data as GithubRelease[]).find((r) => !r.draft && r.tag_name) ?? null;
-    return (data as GithubRelease) ?? null;
+    return ((await res.json()) as GithubRelease) ?? null;
   }
 
   /** Plain, short version of the release notes for the status line. */
@@ -238,7 +234,7 @@
     if (update.kind === "checking") return;
     update = { kind: "checking" };
     try {
-      const release = await fetchLatestRelease(appSettings.updateChannel);
+      const release = await fetchLatestRelease();
       if (!release?.tag_name) {
         update = { kind: "error", message: "No published release was found." };
         return;
@@ -554,13 +550,6 @@
             <div class="settings-group">
               <h4>Preferences <span class="soon-badge">Coming soon</span></h4>
               {@render toggle("autoCheckUpdates", "Check for updates automatically", "Look for a new version each time Stellars starts.")}
-              {@render segmented(
-                "Release channel",
-                "Beta builds arrive sooner but may be less stable.",
-                [{ value: "stable", label: "Stable" }, { value: "beta", label: "Beta" }],
-                appSettings.updateChannel,
-                (v) => save({ updateChannel: v as AppSettings["updateChannel"] })
-              )}
             </div>
 
           {:else if tab === "advanced"}

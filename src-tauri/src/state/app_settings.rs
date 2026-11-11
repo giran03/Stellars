@@ -11,13 +11,6 @@ pub enum CloseBehavior {
     Quit,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum UpdateChannel {
-    Stable,
-    Beta,
-}
-
 /// How much of the interface is shown. The mode only hides or reveals controls; it never
 /// changes audio values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -56,7 +49,6 @@ pub struct AppSettings {
     pub save_resources_in_background: bool,
     pub onboarding_completed: bool,
     pub auto_check_updates: bool,
-    pub update_channel: UpdateChannel,
     pub last_update_check: Option<String>,
     #[serde(default = "existing_install_mode")]
     pub interface_mode: InterfaceMode,
@@ -82,7 +74,6 @@ impl Default for AppSettings {
             save_resources_in_background: true,
             onboarding_completed: false,
             auto_check_updates: true,
-            update_channel: UpdateChannel::Stable,
             last_update_check: None,
             interface_mode: InterfaceMode::Simple,
             interface_mode_chosen: false,
@@ -146,7 +137,6 @@ mod tests {
     fn roundtrip_preserves_values() {
         let mut s = AppSettings::default();
         s.close_behavior = CloseBehavior::Quit;
-        s.update_channel = UpdateChannel::Beta;
         let restored: AppSettings =
             serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(restored, s);

@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type CloseBehavior = "tray" | "quit";
-export type UpdateChannel = "stable" | "beta";
 export type InterfaceMode = "simple" | "advanced";
 
 /** Mirrors `AppSettings` in src-tauri/src/state/app_settings.rs (camelCase over IPC). */
@@ -21,7 +20,6 @@ export interface AppSettings {
   saveResourcesInBackground: boolean;
   onboardingCompleted: boolean;
   autoCheckUpdates: boolean;
-  updateChannel: UpdateChannel;
   lastUpdateCheck: string | null;
   interfaceMode: InterfaceMode;
   /** False until the user picks a mode in the wizard or the side prompt. */
@@ -43,7 +41,6 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   saveResourcesInBackground: true,
   onboardingCompleted: false,
   autoCheckUpdates: true,
-  updateChannel: "stable",
   lastUpdateCheck: null,
   interfaceMode: "simple",
   interfaceModeChosen: false,
