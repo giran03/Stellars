@@ -220,6 +220,7 @@ pub(crate) fn quit_application(app: &AppHandle) {
         }
         state.flush_config();
         state.current_engine().shutdown();
+        state::session_guard::end(&state.data_dir());
     }
     logging::info("Stellars quitting");
     app.exit(0);
@@ -285,7 +286,27 @@ fn run_cable_setup_and_exit() {
     }
 }
 
+/// `stellars.exe --uninstall-cables`, run by the uninstaller: removes the cables Stellars installed
+/// and restores the Windows audio routing, then exits.
+fn run_cable_uninstall_and_exit() {
+    if let Some(dir) = RouterConfig::default_config_path().parent() {
+        logging::init(dir);
+    }
+    logging::info("Uninstaller: restoring Windows audio");
+    let (actions, reboot_recommended) = interop::uninstall::run_uninstaller_cleanup();
+    for line in actions {
+        logging::info(&format!("Uninstaller: {line}"));
+    }
+    if reboot_recommended {
+        std::process::exit(interop::uninstall::UNINSTALL_REBOOT_EXIT_CODE);
+    }
+}
+
 fn main() {
+    if interop::uninstall::is_uninstall_invocation(std::env::args()) {
+        run_cable_uninstall_and_exit();
+        return;
+    }
     if interop::cables::is_setup_invocation(std::env::args()) {
         run_cable_setup_and_exit();
         return;
@@ -298,7 +319,15 @@ fn main() {
             }
             logging::install_panic_hook();
             logging::info(&format!("Stellars {} starting", env!("CARGO_PKG_VERSION")));
+            // A leftover marker means the last session crashed: apps may still be routed to the
+            // silent sink in Windows, so send them back to their normal device first.
+            let crashed = config_path.parent().is_some_and(state::session_guard::begin);
+            if crashed {
+                logging::warn("The previous session did not end cleanly; resetting per-app audio routing");
+                let _ = interop::policy::clear_all_persisted_endpoints();
+            }
             let app_state = AppState::new(config_path);
+            app_state.recovered_from_crash.store(crashed, Ordering::Relaxed);
             app.manage(app_state);
             tray::setup(app.handle())?;
             apply_startup_window_settings(app.handle());
@@ -364,6 +393,13 @@ fn main() {
             commands::quit_application,
             commands::get_diagnostics,
             commands::get_log_tail,
+            commands::get_setup_checks,
+            commands::restore_windows_audio,
+            commands::resume_audio_engine,
+            commands::export_support_file,
+            commands::export_presets,
+            commands::export_presets_file,
+            commands::import_presets,
             commands::open_logs_folder,
             commands::create_backup,
             commands::list_backups,

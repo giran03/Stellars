@@ -7,3 +7,4 @@ pub mod nvidia;
 pub mod policy;
 pub mod sessions;
 pub mod silent_sink;
+pub mod uninstall;

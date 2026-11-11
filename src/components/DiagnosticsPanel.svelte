@@ -25,6 +25,16 @@
     devices: DeviceHealth[];
     dataDir: string;
     logPath: string | null;
+    /** Estimated delay of the monitor path; 0 while the engine is stopped. */
+    latencyMs: number;
+    setupChecks: SetupCheck[];
+  }
+
+  interface SetupCheck {
+    id: string;
+    level: "ok" | "info" | "warn";
+    title: string;
+    detail: string;
   }
 
   interface Props {
@@ -173,6 +183,48 @@
       error = String(err);
     }
   }
+
+  async function exportSupportFile() {
+    try {
+      await invoke<string>("export_support_file");
+      onNotify("Support file saved · it is selected in Explorer");
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
+  /** The restore stops routing, so it needs a second click. */
+  let restoreArmed = $state(false);
+  let restoreTimer: ReturnType<typeof setTimeout> | undefined;
+
+  async function restoreAudio() {
+    if (!restoreArmed) {
+      restoreArmed = true;
+      clearTimeout(restoreTimer);
+      restoreTimer = setTimeout(() => (restoreArmed = false), 4000);
+      return;
+    }
+    restoreArmed = false;
+    try {
+      await invoke<string[]>("restore_windows_audio");
+      onNotify("Windows audio restored · Stellars routing is paused");
+      await poll(false);
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
+  async function resumeEngine() {
+    try {
+      await invoke("resume_audio_engine");
+      onNotify("Stellars routing resumed");
+      await poll(false);
+    } catch (err) {
+      error = String(err);
+    }
+  }
+
+  const latencyLabel = $derived(report && report.latencyMs > 0 ? `≈ ${Math.round(report.latencyMs)} ms` : "…");
 </script>
 
 {#if !native}
@@ -186,6 +238,7 @@
       <div><span>Microphone</span><strong>{report ? (report.micRunning ? "Active" : "Standby") : "…"}</strong></div>
       <div><span>Callbacks / s</span><strong>{callbacksPerSec ?? "…"}</strong></div>
       <div><span>Audio load</span><strong class:bad={!!report && report.worstBlockPercent >= 80}>{report ? `${Math.round(report.cpuLoadPercent)}% · peak ${Math.round(report.worstBlockPercent)}%` : "…"}</strong></div>
+      <div><span>Delay (estimate)</span><strong>{latencyLabel}</strong></div>
       <div><span>Underruns</span><strong class:bad={underrunsSinceOpen > 0}>{report ? report.underrunCount : "…"}</strong></div>
       <div><span>Uptime</span><strong>{report ? formatUptime(report.uptimeSecs) : "…"}</strong></div>
     </div>
@@ -195,6 +248,15 @@
       <ul class="findings">
         {#each findings as f}
           <li class={f.level}><span class="dot"></span>{f.text}</li>
+        {/each}
+      </ul>
+    </section>
+
+    <section class="diag-section" aria-label="Setup checks">
+      <h4>Setup checks</h4>
+      <ul class="findings">
+        {#each report?.setupChecks ?? [] as check (check.id)}
+          <li class={check.level}><span class="dot"></span><span><strong>{check.title}</strong>{check.detail ? ` · ${check.detail}` : ""}</span></li>
         {/each}
       </ul>
     </section>
@@ -224,7 +286,25 @@
       <button type="button" class="quiet-button" onclick={openLogs}>
         <StudioIcon name="folder" size={14} /> Open log folder
       </button>
+      <button type="button" class="quiet-button" disabled={!report} onclick={exportSupportFile} data-tooltip="One file with diagnostics, settings and the recent log. Windows user names are removed.">
+        <StudioIcon name="folder" size={14} /> Export support file
+      </button>
     </div>
+
+    <section class="diag-section" aria-label="Repair">
+      <h4>Repair</h4>
+      <p class="repair-note">Stops Stellars’ routing and puts Windows audio back the way it was before Stellars: every app plays to its normal device, a muted silent sink is unmuted and your original default speakers and microphone return. Your assignments are kept; resume routing when you’re ready.</p>
+      <div class="diag-actions">
+        <button type="button" class="quiet-button" class:armed={restoreArmed} onclick={restoreAudio}>
+          <StudioIcon name="reset" size={14} /> {restoreArmed ? "Click again to confirm" : "Restore Windows audio"}
+        </button>
+        {#if report && !report.masterRunning}
+          <button type="button" class="cable-install-button" onclick={resumeEngine}>
+            <StudioIcon name="check" size={14} /> Resume Stellars routing
+          </button>
+        {/if}
+      </div>
+    </section>
   </div>
 {/if}
 
@@ -258,6 +338,9 @@
 
   .log { margin: 0; max-height: 190px; overflow: auto; padding: 12px; border-radius: 10px; font: 10.5px/1.6 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text-secondary); background: var(--panel-inset); border: 1px solid var(--line); }
   .diag-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .repair-note { margin: 0 0 10px; font-size: 11px; line-height: 1.55; color: var(--text-muted); }
+  .diag :global(.quiet-button.armed) { background: #f08c7f26; color: #ffb4aa; }
+  :global(:root[data-theme="light"]) .diag :global(.quiet-button.armed) { color: #a3342a; }
 
   @media (max-width: 760px) { .device-list li { grid-template-columns: 1fr auto; } .device-list .slot { grid-column: 1 / -1; } }
 </style>

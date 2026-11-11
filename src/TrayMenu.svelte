@@ -10,6 +10,8 @@
   const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
   let allMuted = $state(false);
+  let micMuted = $state(false);
+  let hasScenes = $state(false);
   let root = $state<HTMLElement | null>(null);
 
   function applyTheme() {
@@ -24,8 +26,10 @@
     applyTheme();
     if (!isTauri) return;
     try {
-      const state = await invoke<{ allMuted: boolean }>("tray_menu_state");
+      const state = await invoke<{ allMuted: boolean; micMuted: boolean; hasScenes: boolean }>("tray_menu_state");
       allMuted = state.allMuted;
+      micMuted = state.micMuted;
+      hasScenes = state.hasScenes;
     } catch {}
   }
 
@@ -92,8 +96,17 @@
     <button class="item" role="menuitem" onclick={() => run("toggle_mute_all")}>
       <StudioIcon name={allMuted ? "volume" : "mute"} size={16} /><span>{allMuted ? "Unmute all channels" : "Mute all channels"}</span>
     </button>
+    <button class="item" role="menuitem" onclick={() => run("toggle_mic_mute")}>
+      <StudioIcon name={micMuted ? "volume" : "mute"} size={16} /><span>{micMuted ? "Unmute microphone" : "Mute microphone"}</span>
+    </button>
+    <button class="item" role="menuitem" disabled={!hasScenes} onclick={() => run("next_scene")}>
+      <StudioIcon name="mix" size={16} /><span>{hasScenes ? "Next scene" : "Next scene (none saved)"}</span>
+    </button>
     <button class="item" role="menuitem" onclick={() => run("reset_endpoints")}>
       <StudioIcon name="reset" size={16} /><span>Reset app audio endpoints</span>
+    </button>
+    <button class="item" role="menuitem" onclick={() => run("restore_audio")} title="Stops routing and puts Windows audio back as it was before Stellars">
+      <StudioIcon name="headphones" size={16} /><span>Restore Windows audio</span>
     </button>
 
     <div class="divider" role="separator"></div>
@@ -147,6 +160,8 @@
   .item:hover, .item:focus-visible { background: var(--control); color: var(--text); outline: none; }
   .item:hover :global(svg), .item:focus-visible :global(svg) { color: var(--violet); }
   .item:active { background: var(--control-hover); }
+  .item:disabled { opacity: 0.45; cursor: default; }
+  .item:disabled:hover { background: transparent; color: var(--text-secondary); }
   .item.danger:hover, .item.danger:focus-visible { background: color-mix(in srgb, #e5484d 14%, transparent); color: #e5484d; }
   .item.danger:hover :global(svg), .item.danger:focus-visible :global(svg) { color: #e5484d; }
   :global(:root[data-theme="light"]) .item.danger:hover, :global(:root[data-theme="light"]) .item.danger:focus-visible { color: #c42b31; }

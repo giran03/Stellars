@@ -11,3 +11,21 @@
     SetRebootFlag true
   ${EndIf}
 !macroend
+
+; Before the files are removed, undo the audio changes: remove the cables Stellars installed and
+; put the Windows default devices and per-app routing back as they were. Skipped while the
+; installer replaces an older version (/UPDATE, /P), so an update keeps the cables.
+!macro NSIS_HOOK_PREUNINSTALL
+  ${GetOptions} $CMDLINE "/UPDATE" $R0
+  ${If} ${Errors}
+    ${GetOptions} $CMDLINE "/P" $R0
+    ${If} ${Errors}
+      DetailPrint "Removing Stellars virtual audio cables and restoring your audio settings..."
+      nsExec::ExecToLog '"$INSTDIR\${MAINBINARYNAME}.exe" --uninstall-cables'
+      Pop $0
+      ${If} $0 == 3010
+        SetRebootFlag true
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+!macroend

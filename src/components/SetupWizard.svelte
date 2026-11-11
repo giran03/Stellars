@@ -3,7 +3,15 @@
   import StudioIcon from "./StudioIcon.svelte";
   import ToggleRow from "./ToggleRow.svelte";
   import ModeChoice from "./ModeChoice.svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import { appSettings, updateAppSettings, type AppSettings } from "../appSettings.svelte";
+
+  interface SetupCheck {
+    id: string;
+    level: "ok" | "info" | "warn";
+    title: string;
+    detail: string;
+  }
 
   interface Props {
     open: boolean;
@@ -15,8 +23,24 @@
 
   let { open, native, devices, onFinish }: Props = $props();
 
-  const STEPS = ["Welcome", "Devices", "Interface", "Preferences", "Ready"] as const;
+  const STEPS = ["Welcome", "Devices", "Interface", "Preferences", "Check", "Ready"] as const;
+  const CHECK_STEP = 4;
   let step = $state(0);
+  let checks = $state<SetupCheck[]>([]);
+  let checking = $state(false);
+
+  async function runChecks() {
+    if (!native || checking) return;
+    checking = true;
+    try {
+      // Give Windows a moment to register cables installed in the previous step.
+      checks = await invoke<SetupCheck[]>("get_setup_checks");
+    } catch (err) {
+      error = `Could not check your setup: ${String(err)}`;
+    } finally {
+      checking = false;
+    }
+  }
   let dialogEl = $state<HTMLDivElement>();
   let error = $state<string | null>(null);
 
@@ -43,6 +67,7 @@
 
   function go(delta: number) {
     step = Math.min(STEPS.length - 1, Math.max(0, step + delta));
+    if (step === CHECK_STEP) void runChecks();
     focusHeading();
   }
 
@@ -128,6 +153,21 @@
             checked={appSettings.autoReconnectDevices}
             onchange={(v) => save({ autoReconnectDevices: v })}
           />
+        {:else if step === CHECK_STEP}
+          <h2 id="wizard-title" data-step-heading tabindex="-1">Checking your setup</h2>
+          <p class="lead">Stellars checks your cables, routes and Windows defaults. Fix anything marked in orange, then check again. You can still finish with warnings.</p>
+          {#if !native}
+            <p class="lead">The setup check reads your real audio devices, so it is only available in the desktop app.</p>
+          {:else}
+            <ul class="checks" aria-live="polite">
+              {#each checks as check (check.id)}
+                <li class={check.level}><span class="dot"></span><span><strong>{check.title}</strong>{check.detail ? ` · ${check.detail}` : ""}</span></li>
+              {:else}
+                <li class="info"><span class="dot"></span><span>{checking ? "Checking…" : "No results yet."}</span></li>
+              {/each}
+            </ul>
+            <div><button type="button" class="quiet-button" disabled={checking} onclick={runChecks}><StudioIcon name="reset" size={14} /> Check again</button></div>
+          {/if}
         {:else}
           <h2 id="wizard-title" data-step-heading tabindex="-1">You’re all set</h2>
           <p class="lead">A few things worth knowing:</p>
@@ -172,6 +212,12 @@
   .points li :global(svg) { flex-shrink: 0; margin-top: 2px; color: var(--violet); }
   .points strong { display: block; font-size: 12.5px; margin-bottom: 2px; }
   .points span { font-size: 11.5px; line-height: 1.5; color: var(--text-muted); }
+  .checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .checks li { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; font-size: 11.5px; line-height: 1.55; background: var(--panel-raised); border: 1px solid var(--line); }
+  .checks .dot { flex-shrink: 0; width: 7px; height: 7px; margin-top: 6px; border-radius: 50%; background: var(--text-muted); }
+  .checks .ok .dot { background: var(--teal); }
+  .checks .warn .dot { background: #f08c7f; }
+  .checks .info .dot { background: #edc990; }
   kbd { padding: 1px 6px; border-radius: 5px; background: var(--control); border: 1px solid var(--line-strong); font: inherit; font-size: 10.5px; font-weight: 600; }
   .wizard-alert { padding: 10px 12px; border-radius: 9px; font-size: 11px; color: #ffc4d7; background: #f0a7c61a; border: 1px solid #f0a7c633; }
   :global(:root[data-theme="light"]) .wizard-alert { color: #9c2f58; }

@@ -16,7 +16,7 @@ pub const LABEL: &str = "tray";
 
 /// Visible card size in logical pixels. Must match `.card` in `src/TrayMenu.svelte`.
 const CARD_W: f64 = 240.0;
-const CARD_H: f64 = 211.0;
+const CARD_H: f64 = 319.0;
 /// The window is exactly the card: no blurred shadow or margin around it.
 const SHADOW_PAD: f64 = 0.0;
 /// Space kept between the card and the tray icon / screen edge.
@@ -311,11 +311,17 @@ pub fn handle_window_event(window: &tauri::Window, event: &WindowEvent) {
 #[serde(rename_all = "camelCase")]
 pub struct TrayMenuState {
     all_muted: bool,
+    mic_muted: bool,
+    has_scenes: bool,
 }
 
 #[tauri::command]
 pub fn tray_menu_state(state: tauri::State<'_, AppState>) -> TrayMenuState {
-    TrayMenuState { all_muted: state.is_all_muted() }
+    TrayMenuState {
+        all_muted: state.is_all_muted(),
+        mic_muted: state.is_mic_muted(),
+        has_scenes: !state.presets_snapshot().scenes.is_empty(),
+    }
 }
 
 #[tauri::command]
@@ -338,6 +344,30 @@ pub async fn tray_menu_action(app: AppHandle, action: String) {
                 let muted = state.toggle_mute_all();
                 logging::info(if muted { "Tray: all channels muted" } else { "Tray: channel mutes restored" });
                 let _ = app.emit("config-changed", ());
+            }
+        }
+        "toggle_mic_mute" => {
+            if let Some(state) = app.try_state::<AppState>() {
+                let muted = state.toggle_mic_mute();
+                logging::info(if muted { "Tray: microphone muted" } else { "Tray: microphone unmuted" });
+                let _ = app.emit("config-changed", ());
+            }
+        }
+        "next_scene" => {
+            if let Some(state) = app.try_state::<AppState>() {
+                match state.next_scene() {
+                    Some(name) => {
+                        logging::info(&format!("Tray: scene switched to {name}"));
+                        let _ = app.emit("scene-applied", serde_json::json!({ "id": "", "name": name }));
+                    }
+                    None => logging::info("Tray: no scene to switch to"),
+                }
+            }
+        }
+        "restore_audio" => {
+            if let Some(state) = app.try_state::<AppState>() {
+                state.restore_windows_audio();
+                let _ = app.emit("audio-restored", ());
             }
         }
         "quit" => crate::quit_application(&app),

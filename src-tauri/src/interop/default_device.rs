@@ -92,6 +92,47 @@ pub fn devices_to_restore<'a>(
         .collect()
 }
 
+/// Devices to put back at uninstall: one per flow where the saved pre-install default is still
+/// connected (and is not a virtual cable) but is no longer the Windows default.
+pub fn devices_to_reinstate<'a>(
+    before: &DefaultDevices,
+    endpoints: &'a [AudioEndpointInfo],
+) -> Vec<&'a AudioEndpointInfo> {
+    [("Render", before.render.as_deref()), ("Capture", before.capture.as_deref())]
+        .into_iter()
+        .filter_map(|(flow, before_id)| {
+            let before_id = before_id?;
+            let already_default = endpoints
+                .iter()
+                .any(|e| e.flow == flow && e.is_default && e.id == before_id);
+            if already_default {
+                return None;
+            }
+            endpoints
+                .iter()
+                .find(|e| e.flow == flow && e.id == before_id && !is_virtual_audio_endpoint_name(&e.name))
+        })
+        .collect()
+}
+
+/// Sets the Windows defaults back to what they were before Stellars was installed.
+/// Returns a log line for each device restored.
+pub fn restore_original_defaults(before: &DefaultDevices) -> Vec<String> {
+    let Ok(endpoints) = enumerate_audio_endpoints() else {
+        return Vec::new();
+    };
+    devices_to_reinstate(before, &endpoints)
+        .into_iter()
+        .map(|ep| {
+            let kind = if ep.flow == "Render" { "playback" } else { "recording" };
+            match set_default_endpoint(&ep.id) {
+                Ok(()) => format!("Restored '{}' as the Windows default {kind} device", ep.name),
+                Err(err) => format!("Could not restore '{}' as the default {kind} device: {err}", ep.name),
+            }
+        })
+        .collect()
+}
+
 fn set_default_endpoint(device_id: &str) -> Result<(), String> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
@@ -183,6 +224,29 @@ mod tests {
     fn skips_a_previous_default_that_is_no_longer_connected() {
         let eps = vec![ep("cab-in", "CABLE Input (VB-Audio Virtual Cable)", "Render", true)];
         assert!(devices_to_restore(&before(), &eps).is_empty());
+    }
+
+    #[test]
+    fn reinstates_the_saved_default_when_windows_picked_another_device() {
+        let eps = vec![
+            ep("spk", "Speakers (Realtek Audio)", "Render", false),
+            ep("hdmi", "LG Monitor (NVIDIA High Definition Audio)", "Render", true),
+            ep("mic", "Microphone (USB Audio)", "Capture", true),
+        ];
+        let ids: Vec<_> = devices_to_reinstate(&before(), &eps).iter().map(|e| e.id.as_str()).collect();
+        assert_eq!(ids, vec!["spk"]);
+    }
+
+    #[test]
+    fn reinstate_skips_missing_or_virtual_devices() {
+        let eps = vec![ep("cab-in", "CABLE Input (VB-Audio Virtual Cable)", "Render", true)];
+        assert!(devices_to_reinstate(&before(), &eps).is_empty());
+        let virtual_before = DefaultDevices { render: Some("cab-in".into()), capture: None };
+        let eps = vec![
+            ep("cab-in", "CABLE Input (VB-Audio Virtual Cable)", "Render", false),
+            ep("spk", "Speakers (Realtek Audio)", "Render", true),
+        ];
+        assert!(devices_to_reinstate(&virtual_before, &eps).is_empty());
     }
 
     /// Checks the COM class and vtable layout on this PC with read-only calls.

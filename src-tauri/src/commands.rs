@@ -16,6 +16,7 @@ use crate::interop::autostart;
 use crate::interop::sessions::device_mix_rate;
 use crate::state::app_settings::AppSettings;
 use crate::state::backup::{self, BackupInfo, BackupKind};
+use crate::state::health::{estimate_latency_ms, HealthCheck};
 use crate::state::logging;
 use crate::state::meter_pacing::{self, MeterPacing};
 use crate::state::presets::{self, OutputProfile, PresetStore, Scene, SceneSnapshot};
@@ -50,6 +51,8 @@ pub struct AppState {
     mute_all_snapshot: Mutex<Option<Vec<BusId>>>,
     /// Writes the live config shortly after the last change instead of on every one.
     config_saver: DebouncedSaver,
+    /// True when the previous session did not end cleanly (set once at startup).
+    pub recovered_from_crash: AtomicBool,
 }
 
 fn log_actions(actions: Vec<String>) {
@@ -106,6 +109,7 @@ impl AppState {
             started_at: std::time::Instant::now(),
             mute_all_snapshot: Mutex::new(None),
             config_saver,
+            recovered_from_crash: AtomicBool::new(false),
         }
     }
 
@@ -903,11 +907,15 @@ pub struct AppInfo {
     pub version: String,
     #[serde(rename = "dataDir")]
     pub data_dir: String,
+    /// True when the previous session did not end cleanly; routing was reset at startup.
+    #[serde(rename = "recoveredFromCrash")]
+    pub recovered_from_crash: bool,
 }
 
 #[tauri::command]
 pub fn get_app_info(state: State<'_, AppState>) -> AppInfo {
     AppInfo {
+        recovered_from_crash: state.recovered_from_crash.load(Ordering::Relaxed),
         version: env!("CARGO_PKG_VERSION").to_string(),
         data_dir: state
             .config_path
@@ -982,10 +990,17 @@ pub struct DiagnosticsReport {
     pub devices: Vec<DeviceHealth>,
     pub data_dir: String,
     pub log_path: Option<String>,
+    /// Estimated delay of the monitor path in milliseconds (0 while the engine is stopped).
+    pub latency_ms: f32,
+    pub setup_checks: Vec<HealthCheck>,
 }
 
 #[tauri::command]
 pub fn get_diagnostics(state: State<'_, AppState>) -> Result<DiagnosticsReport, String> {
+    build_diagnostics(&state)
+}
+
+pub fn build_diagnostics(state: &AppState) -> Result<DiagnosticsReport, String> {
     let engine = state.current_engine();
     let cfg = engine
         .config
@@ -1032,6 +1047,17 @@ pub fn get_diagnostics(state: State<'_, AppState>) -> Result<DiagnosticsReport, 
     .collect();
 
     let load = engine.diagnostics.take_load_report();
+    let deep_filter_states = engine.deep_filter_states();
+    let buffer_frames = engine.diagnostics.render_buffer_frames.load(Ordering::Relaxed);
+    let latency_ms = if buffer_frames == 0 {
+        0.0
+    } else {
+        estimate_latency_ms(
+            buffer_frames,
+            DEFAULT_SAMPLE_RATE as u32,
+            deep_filter_states.iter().any(|(_, s)| *s == "ready"),
+        )
+    };
     Ok(DiagnosticsReport {
         app_version: env!("CARGO_PKG_VERSION").to_string(),
         engine_rate_hz: DEFAULT_SAMPLE_RATE as u32,
@@ -1042,15 +1068,73 @@ pub fn get_diagnostics(state: State<'_, AppState>) -> Result<DiagnosticsReport, 
         underrun_count: engine.diagnostics.underrun_count.load(Ordering::Relaxed),
         cpu_load_percent: load.0,
         worst_block_percent: load.1,
-        deep_filter: engine
-            .deep_filter_states()
+        deep_filter: deep_filter_states
             .into_iter()
             .map(|(bus, state)| DeepFilterStatus { bus, state })
             .collect(),
         devices,
         data_dir: state.data_dir().display().to_string(),
         log_path: logging::log_file_path().map(|p| p.display().to_string()),
+        latency_ms,
+        setup_checks: state.setup_checks(),
     })
+}
+
+/// Setup checks alone (cables, routes, Windows defaults), for the first-run wizard.
+#[tauri::command]
+pub fn get_setup_checks(state: State<'_, AppState>) -> Vec<HealthCheck> {
+    state.setup_checks()
+}
+
+/// Stops Stellars' routing and restores Windows audio to its state before Stellars.
+#[tauri::command]
+pub fn restore_windows_audio(app: tauri::AppHandle, state: State<'_, AppState>) -> Vec<String> {
+    let log = state.restore_windows_audio();
+    let _ = tauri::Emitter::emit(&app, "audio-restored", ());
+    log
+}
+
+/// Starts routing again after [`restore_windows_audio`].
+#[tauri::command]
+pub fn resume_audio_engine(state: State<'_, AppState>) -> Result<(), String> {
+    state.resume_audio_engine()
+}
+
+/// Writes the support file and shows it in Explorer. Returns its path.
+#[tauri::command]
+pub fn export_support_file(state: State<'_, AppState>) -> Result<String, String> {
+    let path = state.write_support_file()?;
+    let _ = spawn_detached("explorer.exe", &[&format!("/select,{}", path.display())]);
+    Ok(path.display().to_string())
+}
+
+/// All presets, scenes and output profiles as a shareable JSON text.
+#[tauri::command]
+pub fn export_presets(state: State<'_, AppState>) -> Result<String, String> {
+    serde_json::to_string_pretty(&state.presets_snapshot().to_share_file()).map_err(|e| e.to_string())
+}
+
+/// Writes the shareable JSON into the `exports` folder and shows it in Explorer.
+#[tauri::command]
+pub fn export_presets_file(state: State<'_, AppState>) -> Result<String, String> {
+    let json = export_presets(state.clone())?;
+    let dir = state.data_dir().join("exports");
+    std::fs::create_dir_all(&dir).map_err(|e| format!("Could not create the exports folder: {e}"))?;
+    let path = dir.join(format!("stellars-presets-{}.json", logging::unix_now_secs()));
+    std::fs::write(&path, json).map_err(|e| format!("Could not write the file: {e}"))?;
+    let _ = spawn_detached("explorer.exe", &[&format!("/select,{}", path.display())]);
+    Ok(path.display().to_string())
+}
+
+/// Adds the presets, scenes and output profiles of a shared file to this PC's.
+#[tauri::command]
+pub fn import_presets(
+    state: State<'_, AppState>,
+    json: String,
+) -> Result<(PresetStore, presets::ImportSummary), String> {
+    let file = presets::parse_share_file(&json)?;
+    let (store, summary) = state.update_presets(|store| store.merge_share_file(file))?;
+    Ok((store, summary))
 }
 
 #[tauri::command]

@@ -11,9 +11,18 @@ All notable changes to Stellars are recorded here, newest version first.
 
 ---
 
-## [1.0.1] - in development
+## [1.0.1] - 2026-11-11
 
 ### Added
+
+- Uninstalling Stellars now also removes the VB-CABLE and Hi-Fi Cable drivers that Stellars installed (cables you already had are left alone) and restores your audio to how it was before Stellars: your original default speakers and microphone, every app's output back to the Windows default, and any output Stellars had muted unmuted. Updating Stellars keeps the cables.
+- **Restore Windows audio** (Settings → Diagnostics → Repair, and the tray menu): stops Stellars' routing and puts Windows audio back as it was before Stellars. Every app plays to its normal device again, a muted silent sink is unmuted and your original default speakers and microphone return. Your assignments are kept, and one click resumes routing.
+- **Crash recovery:** if Stellars did not close properly last time, app audio routing is reset at the next start so no app stays silent, and you are told about it.
+- **Setup checks** on the Diagnostics page and in the setup wizard (new "Check" step): cables, silent sink, virtual mic, stream output and whether a virtual cable has taken over your Windows default devices, each with what to do about it.
+- **Delay estimate** on the Diagnostics page.
+- **Export support file** (Diagnostics): one file with diagnostics, settings and the recent log, with Windows user names removed, ready to attach to a bug report.
+- **Import and export of scenes, output profiles and saved sound presets** (Settings → Presets → Share). Imported items are added next to yours and never replace them; output devices from another PC are left unset.
+- **Tray quick actions:** mute or unmute the microphone, switch to the next scene, and restore Windows audio.
 
 ### Changed
 

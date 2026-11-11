@@ -1318,6 +1318,17 @@
         showToast("Channel mutes updated from the tray");
       })
     );
+    track(
+      listen("audio-restored", () => {
+        void loadRouterState();
+        showToast("Windows audio restored · Stellars routing is paused. Resume it in Settings → Diagnostics.");
+      })
+    );
+    void invoke<{ recoveredFromCrash?: boolean }>("get_app_info")
+      .then((info) => {
+        if (info.recoveredFromCrash) showToast("Stellars didn’t close properly last time · app audio routing was reset to be safe");
+      })
+      .catch(() => {});
     return () => {
       disposed = true;
       unlisteners.forEach((off) => off());

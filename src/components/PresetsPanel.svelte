@@ -7,6 +7,9 @@
     applyScene,
     deleteOutputProfile,
     deleteScene,
+    exportPresetsFile,
+    exportPresetsText,
+    importPresets,
     loadPresets,
     parseAppList,
     presetStore,
@@ -81,6 +84,34 @@
     run(async () => {
       onApplied(await applyOutputProfile(id));
       onNotify(`Output: ${name}`);
+    });
+
+  let importInput = $state<HTMLInputElement>();
+
+  const exportToFile = () =>
+    run(async () => {
+      await exportPresetsFile();
+      onNotify("Exported · the file is selected in Explorer");
+    });
+
+  const copyExport = () =>
+    run(async () => {
+      await navigator.clipboard.writeText(await exportPresetsText());
+      onNotify("Export copied to the clipboard");
+    });
+
+  const importFromFile = (file: File | undefined) =>
+    run(async () => {
+      if (!file) return;
+      const summary = await importPresets(await file.text());
+      const parts = [
+        summary.scenes && `${summary.scenes} scene${summary.scenes === 1 ? "" : "s"}`,
+        summary.outputProfiles && `${summary.outputProfiles} output profile${summary.outputProfiles === 1 ? "" : "s"}`,
+        summary.userPresets && `${summary.userPresets} sound preset${summary.userPresets === 1 ? "" : "s"}`,
+      ].filter(Boolean);
+      onNotify(`Imported ${parts.join(", ") || "nothing new"}`);
+    }).finally(() => {
+      if (importInput) importInput.value = "";
     });
 
   function startEditApps(id: string, apps: string[]) {
@@ -195,9 +226,21 @@
       </ul>
     {/if}
   </div>
+
+  <div class="presets-group">
+    <h4>Share</h4>
+    <p class="presets-note">Export your scenes, output profiles and saved sound presets to a file, or import ones from a friend. Imported items are added next to yours and never replace them. Output devices from another PC are left unset.</p>
+    <div class="row-actions share-actions">
+      <button type="button" class="cable-install-button" disabled={busy} onclick={exportToFile}><StudioIcon name="folder" size={14} /> Export to file</button>
+      <button type="button" class="quiet-button" disabled={busy} onclick={copyExport}><StudioIcon name="link" size={14} /> Copy export</button>
+      <button type="button" class="quiet-button" disabled={busy} onclick={() => importInput?.click()}><StudioIcon name="plus" size={14} /> Import file…</button>
+      <input bind:this={importInput} type="file" accept=".json,application/json" hidden onchange={(e) => importFromFile(e.currentTarget.files?.[0])} />
+    </div>
+  </div>
 {/if}
 
 <style>
+  .share-actions { justify-content: flex-start; }
   .presets-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
   .presets-group h4 { margin: 0; font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); }
   .presets-note { margin: 0; font-size: 11px; line-height: 1.55; color: var(--text-muted); }

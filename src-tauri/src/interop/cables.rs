@@ -884,10 +884,13 @@ pub const SETUP_REBOOT_EXIT_CODE: i32 = 3010;
 /// needed. Returns a log of what happened and whether a restart is needed; it never panics so the
 /// installation can always finish.
 pub fn run_installer_setup() -> (Vec<String>, bool) {
+    // Remember the user's defaults and which cables are ours, so uninstalling can undo this.
+    let defaults_before = DefaultDevices::capture_now();
     let (mut actions, reboot_recommended) = match run_elevated_vbcable_installer(true, false) {
         Ok(result) => result,
         Err(err) => (vec![format!("Virtual cable setup failed: {err}")], false),
     };
+    actions.push(crate::interop::uninstall::record_install(&actions, &defaults_before));
     // Name each cable after the slot the app will give it on first launch, so the names seen in
     // Discord and OBS are right from the start and do not change when Stellars opens.
     let mut first_run_cfg = RouterConfig::default();

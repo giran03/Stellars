@@ -150,6 +150,25 @@ export async function applyOutputProfile(id: string): Promise<RouterConfig> {
   return cfg;
 }
 
+export interface ImportSummary {
+  userPresets: number;
+  scenes: number;
+  outputProfiles: number;
+}
+
+/** Writes all presets, scenes and output profiles to a file and shows it in Explorer. Returns the path. */
+export const exportPresetsFile = () => invoke<string>("export_presets_file");
+
+/** All presets, scenes and output profiles as shareable JSON text. */
+export const exportPresetsText = () => invoke<string>("export_presets");
+
+/** Adds the contents of a shared file; imported items never replace existing scenes or profiles. */
+export async function importPresets(json: string): Promise<ImportSummary> {
+  const [store, summary] = await invoke<[PresetStorePayload, ImportSummary]>("import_presets", { json });
+  assign(store);
+  return summary;
+}
+
 /** Parses "cs2.exe, valorant.exe" style input into a clean list. */
 export function parseAppList(text: string): string[] {
   return text

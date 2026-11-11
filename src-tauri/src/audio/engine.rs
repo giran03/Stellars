@@ -195,6 +195,8 @@ pub struct EngineDiagnostics {
     pub budget_us_total: AtomicU64,
     /// Heaviest block since the last report, as busy time per block time in permille.
     pub worst_load_permille: AtomicU32,
+    /// Size of the Windows buffer of the monitor output, in frames (0 until it is running).
+    pub render_buffer_frames: AtomicU32,
 }
 
 impl Default for EngineDiagnostics {
@@ -207,6 +209,7 @@ impl Default for EngineDiagnostics {
             busy_us_total: AtomicU64::new(0),
             budget_us_total: AtomicU64::new(0),
             worst_load_permille: AtomicU32::new(0),
+            render_buffer_frames: AtomicU32::new(0),
         }
     }
 }
@@ -1052,6 +1055,7 @@ unsafe fn master_wasapi_loop(
         return Err(format!("Master IAudioClient::Start failed: {e}"));
     }
 
+    diagnostics.render_buffer_frames.store(buffer_frame_count, Ordering::Relaxed);
     diagnostics.master_running.store(true, Ordering::Release);
 
     // REAL-TIME RENDER CALLBACK LOOP (Zero heap allocations, zero locks)

@@ -225,15 +225,195 @@ impl PresetStore {
         self.scenes.iter().find(|s| s.id == id)
     }
 
+    /// Everything worth sharing: sound presets, scenes and output profiles.
+    pub fn to_share_file(&self) -> ShareFile {
+        ShareFile {
+            format: SHARE_FORMAT.to_string(),
+            version: SHARE_VERSION,
+            user_presets: self.user_presets.clone(),
+            scenes: self.scenes.clone(),
+            output_profiles: self.output_profiles.clone(),
+        }
+    }
+
+    /// Adds the contents of a shared file. Imported scenes and profiles always get new ids and
+    /// unique names; devices from another PC are dropped, and values are brought into range.
+    pub fn merge_share_file(&mut self, file: ShareFile) -> Result<ImportSummary, String> {
+        let total = file.user_presets.len() + file.scenes.len() + file.output_profiles.len();
+        if total == 0 {
+            return Err("That file has no presets, scenes or output profiles".to_string());
+        }
+        if total > MAX_IMPORTED_ITEMS {
+            return Err(format!("That file has too many items (the limit is {MAX_IMPORTED_ITEMS})"));
+        }
+        let mut summary = ImportSummary::default();
+        for preset in file.user_presets {
+            if self.upsert_user_preset(&preset.kind, preset.bus, &preset.name, preset.data).is_ok() {
+                summary.user_presets += 1;
+            }
+        }
+        for scene in file.scenes {
+            let Ok(name) = clean_name(&scene.name) else { continue };
+            let mut cfg = RouterConfig::default();
+            scene.snapshot.apply_to(&mut cfg);
+            let cfg = cfg.normalized();
+            let name = unique_name(&name, self.scenes.iter().map(|s| s.name.as_str()));
+            self.scenes.push(Scene {
+                id: new_id("s"),
+                name,
+                auto_apps: clean_apps(scene.auto_apps),
+                snapshot: SceneSnapshot::capture(&cfg),
+            });
+            summary.scenes += 1;
+        }
+        for profile in file.output_profiles {
+            let Ok(name) = clean_name(&profile.name) else { continue };
+            let name = unique_name(&name, self.output_profiles.iter().map(|p| p.name.as_str()));
+            let bus_eq = profile
+                .bus_eq
+                .into_iter()
+                .map(|(bus, bands)| {
+                    let bands = bands.into_iter().take(MAX_IMPORTED_EQ_BANDS).map(|b| b.clamped()).collect();
+                    (bus, bands)
+                })
+                .collect();
+            self.output_profiles.push(OutputProfile {
+                id: new_id("p"),
+                name,
+                master_output_device_id: None,
+                master_volume: profile.master_volume.clamp(0.0, 1.0),
+                bus_eq,
+            });
+            summary.output_profiles += 1;
+        }
+        Ok(summary)
+    }
+
     /// First scene (in list order) that lists `exe` (lower-case) as an auto-apply app.
     pub fn scene_for_app(&self, exe: &str) -> Option<&Scene> {
         self.scenes.iter().find(|s| s.auto_apps.iter().any(|a| a == exe))
     }
 }
 
+pub const SHARE_FORMAT: &str = "stellars-presets";
+const SHARE_VERSION: u32 = 1;
+pub const MAX_IMPORT_BYTES: usize = 2 * 1024 * 1024;
+const MAX_IMPORTED_ITEMS: usize = 100;
+const MAX_IMPORTED_EQ_BANDS: usize = 32;
+
+/// The file written by "Export" and read by "Import".
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareFile {
+    pub format: String,
+    pub version: u32,
+    #[serde(default)]
+    pub user_presets: Vec<UserPreset>,
+    #[serde(default)]
+    pub scenes: Vec<Scene>,
+    #[serde(default)]
+    pub output_profiles: Vec<OutputProfile>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportSummary {
+    pub user_presets: usize,
+    pub scenes: usize,
+    pub output_profiles: usize,
+}
+
+/// `name`, or `name (imported)` / `name (imported 2)` … when `existing` already has it.
+fn unique_name<'a>(name: &str, existing: impl Iterator<Item = &'a str> + Clone) -> String {
+    let taken = |candidate: &str| existing.clone().any(|e| e.eq_ignore_ascii_case(candidate));
+    if !taken(name) {
+        return name.to_string();
+    }
+    let mut n = 1;
+    loop {
+        let suffix = if n == 1 { " (imported)".to_string() } else { format!(" (imported {n})") };
+        let base: String = name.chars().take(40usize.saturating_sub(suffix.chars().count())).collect();
+        let candidate = format!("{base}{suffix}");
+        if !taken(&candidate) {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
+/// Parses a shared file, rejecting anything that is not a Stellars export or is too large.
+pub fn parse_share_file(json: &str) -> Result<ShareFile, String> {
+    if json.len() > MAX_IMPORT_BYTES {
+        return Err("That file is too large to import".to_string());
+    }
+    let file: ShareFile = serde_json::from_str(json).map_err(|_| "That is not a Stellars presets file".to_string())?;
+    if file.format != SHARE_FORMAT {
+        return Err("That is not a Stellars presets file".to_string());
+    }
+    if file.version > SHARE_VERSION {
+        return Err("That file was made by a newer Stellars. Update the app to import it".to_string());
+    }
+    Ok(file)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn share_roundtrip_gives_new_ids_unique_names_and_drops_devices() {
+        let cfg = RouterConfig::default();
+        let mut source = PresetStore::default();
+        source.scenes.push(Scene {
+            id: "s-old".into(),
+            name: "Gaming".into(),
+            auto_apps: vec!["CS2.exe".into()],
+            snapshot: SceneSnapshot::capture(&cfg),
+        });
+        let mut profile_cfg = RouterConfig::default();
+        profile_cfg.master_output_device_id = Some("pc-a-headphones".into());
+        source.output_profiles.push(OutputProfile::capture("p-old".into(), "Headphones".into(), &profile_cfg));
+        source
+            .upsert_user_preset("gate", BusId::Mic, "Quiet room", serde_json::json!({"thresholdDb": -50}))
+            .unwrap();
+
+        let json = serde_json::to_string(&source.to_share_file()).unwrap();
+        let mut target = PresetStore::default();
+        target.scenes.push(Scene {
+            id: "s-mine".into(),
+            name: "gaming".into(),
+            auto_apps: vec![],
+            snapshot: SceneSnapshot::capture(&cfg),
+        });
+        let summary = target.merge_share_file(parse_share_file(&json).unwrap()).unwrap();
+
+        assert_eq!(summary, ImportSummary { user_presets: 1, scenes: 1, output_profiles: 1 });
+        assert_eq!(target.scenes.len(), 2);
+        assert_eq!(target.scenes[1].name, "Gaming (imported)");
+        assert_ne!(target.scenes[1].id, "s-old");
+        assert_eq!(target.scenes[1].auto_apps, vec!["cs2.exe".to_string()]);
+        assert_eq!(target.output_profiles[0].master_output_device_id, None);
+        assert_eq!(target.user_presets.len(), 1);
+    }
+
+    #[test]
+    fn import_rejects_foreign_empty_oversized_and_newer_files() {
+        assert!(parse_share_file("not json").is_err());
+        assert!(parse_share_file(r#"{"format":"other","version":1}"#).is_err());
+        assert!(parse_share_file(r#"{"format":"stellars-presets","version":99}"#).is_err());
+        assert!(parse_share_file(&" ".repeat(MAX_IMPORT_BYTES + 1)).is_err());
+        let empty = parse_share_file(r#"{"format":"stellars-presets","version":1}"#).unwrap();
+        assert!(PresetStore::default().merge_share_file(empty).is_err());
+    }
+
+    #[test]
+    fn imported_names_stay_unique_and_short() {
+        let existing = ["Mix", "Mix (imported)"];
+        assert_eq!(unique_name("Mix", existing.iter().copied()), "Mix (imported 2)");
+        let long = "x".repeat(40);
+        let taken = [long.as_str()];
+        assert!(unique_name(&long, taken.iter().copied()).chars().count() <= 40);
+    }
 
     #[test]
     fn scene_roundtrip_keeps_devices_untouched() {
