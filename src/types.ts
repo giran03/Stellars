@@ -179,6 +179,15 @@ export interface VirtualCableStatusPayload {
   virtualMic: RouteSlotStatus;
   streamMix: RouteSlotStatus;
   allRoutesHealthy: boolean;
+  /** Physical outputs nobody needs to hear that could be the silent sink instead of a cable. */
+  spareOutputs: SpareOutput[];
+  /** True when moving the silent sink to a spare output would free a cable for the Stream Mix. */
+  canFreeCableForStream: boolean;
+}
+
+export interface SpareOutput {
+  id: string;
+  name: string;
 }
 
 export interface VirtualCableSetupResult {

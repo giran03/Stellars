@@ -275,8 +275,13 @@ fn run_cable_setup_and_exit() {
         logging::init(dir);
     }
     logging::info("Installer: setting up virtual audio cables");
-    for line in interop::cables::run_installer_setup() {
+    let (actions, reboot_recommended) = interop::cables::run_installer_setup();
+    for line in actions {
         logging::info(&format!("Installer: {line}"));
+    }
+    if reboot_recommended {
+        logging::info("Installer: Windows needs a restart before the virtual cables appear");
+        std::process::exit(interop::cables::SETUP_REBOOT_EXIT_CODE);
     }
 }
 

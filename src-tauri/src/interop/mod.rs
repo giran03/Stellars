@@ -1,7 +1,9 @@
 pub mod autostart;
 pub mod cables;
+pub mod default_device;
 pub mod foreground;
 pub mod loopback;
 pub mod nvidia;
 pub mod policy;
 pub mod sessions;
+pub mod silent_sink;

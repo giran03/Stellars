@@ -6,4 +6,8 @@
   DetailPrint "Setting up Stellars virtual audio cables (VB-CABLE, Hi-Fi Cable) and endpoint names..."
   nsExec::ExecToLog '"$INSTDIR\${MAINBINARYNAME}.exe" --setup-cables'
   Pop $0
+  ; 3010 = the drivers need a restart before Windows shows the cables: offer it on the last page.
+  ${If} $0 == 3010
+    SetRebootFlag true
+  ${EndIf}
 !macroend

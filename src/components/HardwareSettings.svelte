@@ -21,7 +21,7 @@
       micId: string | null,
       virtMicId: string | null,
       streamOutId?: string | null
-    ) => void;
+    ) => void | Promise<void>;
     onInstallOrRepairCables?: (forceRepair?: boolean) => void;
     onAutoRouteCables?: () => void;
     onRefreshDevices?: () => void;
@@ -82,6 +82,37 @@
   $effect(() => {
     if (active) untrack(() => void loadNvidiaStatus());
   });
+
+  // "Free a cable for the Stream Mix": a spare output (e.g. a monitor) becomes the silent sink,
+  // Stellars mutes it, and the cable it replaces moves to the Stream Mix.
+  const spareOutputs = $derived(cableStatus?.spareOutputs ?? []);
+  let spareChoice = $state("");
+  const chosenSpare = $derived(
+    spareOutputs.some((o) => o.id === spareChoice) ? spareChoice : (spareOutputs[0]?.id ?? "")
+  );
+  let freeingCable = $state(false);
+
+  async function useSpareOutputAsSilentSink() {
+    const freedCableId = config.dummySinkDeviceId;
+    const freedCableName = cableStatus?.silentSink.deviceName ?? "The cable";
+    const spare = spareOutputs.find((o) => o.id === chosenSpare);
+    if (!spare || !freedCableId || freeingCable) return;
+    freeingCable = true;
+    try {
+      await onChangeDevices(
+        config.masterOutputDeviceId,
+        spare.id,
+        config.physicalMicDeviceId,
+        config.virtualMicOutputDeviceId,
+        freedCableId
+      );
+      if (config.dummySinkDeviceId === spare.id) {
+        onNotify(`${spare.name} is now the muted silent sink. ${freedCableName} carries the Stream Mix.`);
+      }
+    } finally {
+      freeingCable = false;
+    }
+  }
 </script>
 
 <div class="hardware-settings" aria-label="Hardware and virtual cable configuration">
@@ -339,6 +370,29 @@
       >
         {cableStatus?.streamMix.hint ?? "Feeds independent Stream recording mix into OBS Studio."}
       </p>
+      {#if cableStatus?.canFreeCableForStream}
+        <div class="free-cable" role="group" aria-label="Free a cable for the Stream Mix">
+          <p class="free-cable-text">
+            Pick an output you don't listen to, like a monitor. Stellars mutes it and uses it as the silent sink, then moves
+            <strong>{cableStatus.silentSink.deviceName ?? "that cable"}</strong> to the Stream Mix.
+          </p>
+          <div class="free-cable-row">
+            <StudioSelect
+              aria-label="Spare output to use as the silent sink"
+              value={chosenSpare}
+              disabled={freeingCable}
+              onchange={(e) => (spareChoice = e.currentTarget.value)}
+            >
+              {#each spareOutputs as out}
+                <option value={out.id}>{out.name}</option>
+              {/each}
+            </StudioSelect>
+            <button type="button" class="quiet-button" disabled={freeingCable} onclick={useSpareOutputAsSilentSink}>
+              {freeingCable ? "Switching…" : "Use as silent sink"}
+            </button>
+          </div>
+        </div>
+      {/if}
     </div>
   </div>
 </div>

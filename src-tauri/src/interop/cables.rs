@@ -1,8 +1,11 @@
+use crate::interop::default_device::{restore_if_taken_over, DefaultDevices};
 use crate::interop::sessions::{enumerate_audio_endpoints, AudioEndpointInfo};
+use crate::interop::silent_sink::{spare_outputs, SpareOutput};
 use crate::state::config::RouterConfig;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fs;
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
@@ -17,17 +20,29 @@ use windows::Win32::System::Com::{
 };
 use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, PROPERTYKEY};
 
-pub const VBCABLE_DOWNLOAD_URLS: [&str; 2] = [
-    "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack46.zip",
-    "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip",
+/// Driver packages the cable setup downloads, as `(https url, pinned SHA-256)`. The elevated setup
+/// refuses any file whose hash differs, so a tampered or swapped download is never unpacked. When
+/// VB-Audio publishes a new package, update the URL and hash together.
+pub const VBCABLE_DOWNLOADS: [(&str, &str); 2] = [
+    (
+        "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack46.zip",
+        "BC44E8974191A5A2427D6C979E2DAB08DBB09925F3F435DFA2F0BA3E45B6EB90",
+    ),
+    (
+        "https://download.vb-audio.com/Download_CABLE/VBCABLE_Driver_Pack45.zip",
+        "B950E39F01AF1D04EA623C8F6D8EB9B6EA5C477C637295FABF20631C85116BFB",
+    ),
 ];
 
-pub const HIFICABLE_DOWNLOAD_URLS: [&str; 2] = [
+pub const HIFICABLE_DOWNLOADS: [(&str, &str); 1] = [(
     "https://download.vb-audio.com/Download_CABLE/HiFiCableAsioBridgeSetup_v1007.zip",
-    "http://vincent.burel.free.fr/VirtualAudioApps/HiFiCableAsioBridgeSetup_v1007.zip",
-];
+    "3ECF204BFD8579D36BB918F9856EB1EADDD49C75146F5E8A8F59DCB8375AE89A",
+)];
 
 const VT_LPWSTR_VAL: u16 = 31;
+
+/// Keeps the driver-setup PowerShell from flashing a console window.
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// `PKEY_Device_DeviceDesc` (`{a45c254e-df1c-4efd-8020-67d146a850e0}, 2`) — Endpoint pin name (e.g. `Stellars - Microphone`).
 const PKEY_DEVICE_DESC: PROPERTYKEY = PROPERTYKEY {
@@ -98,6 +113,11 @@ pub struct VirtualCableStatusPayload {
     pub virtual_mic: RouteSlotStatus,
     pub stream_mix: RouteSlotStatus,
     pub all_routes_healthy: bool,
+    /// Physical outputs nobody needs to hear that could be the silent sink instead of a cable.
+    pub spare_outputs: Vec<SpareOutput>,
+    /// True when the Stream Mix has no cable but one would be freed by moving the silent sink
+    /// from its cable to one of `spare_outputs`.
+    pub can_free_cable_for_stream: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -327,6 +347,9 @@ pub fn inspect_virtual_cables(
         }
 
         let hint = match (&paired_capture_name, slot) {
+            (_, "silentSink") if !is_virtual_audio_endpoint_name(&ep.name) => {
+                "Muted by Stellars · Routed apps' original sound goes here, so you never hear it twice.".to_string()
+            }
             (_, "silentSink") => {
                 "Silences raw dry app audio for Game, Chat, Media, and Aux.".to_string()
             }
@@ -362,11 +385,32 @@ pub fn inspect_virtual_cables(
         "Unassigned · Assign a virtual cable to feed your EQ/gated Mic into Discord or games.",
         "In Discord / Game Voice, select Mic",
     );
+    // With only VB-CABLE and the Hi-Fi Cable, both already carry the silent sink and the virtual
+    // mic: say so instead of suggesting a cable that would only cause a conflict.
+    let used_groups: BTreeSet<String> = [master_id.as_ref(), sink_id, vmic_id]
+        .into_iter()
+        .flatten()
+        .map(|id| group_for_id(id))
+        .collect();
+    let has_spare_cable = detected_cables
+        .iter()
+        .any(|c| !used_groups.contains(&c.group_key));
+    let spare_outputs = spare_outputs(cfg, endpoints);
+    let sink_is_cable = sink_id.is_some_and(|id| detected_cables.iter().any(|c| &c.render_id == id));
+    let can_free_cable_for_stream =
+        stream_id.is_none() && !has_spare_cable && sink_is_cable && !spare_outputs.is_empty();
+    let stream_empty_hint = if has_spare_cable {
+        "Unassigned · Assign a dedicated virtual cable to capture your Stream Mix in OBS."
+    } else if can_free_cable_for_stream {
+        "No spare cable · Your cables carry the silent sink and the mic. Use an output you don't listen to as the silent sink to free one."
+    } else {
+        "No spare cable · Your virtual cables already carry the silent sink and the mic. Add another virtual cable to send a Stream Mix to OBS."
+    };
     let stream_mix = evaluate_slot(
         "streamMix",
         stream_id,
         &[sink_id, vmic_id],
-        "Unassigned · Assign a dedicated virtual cable to capture your Stream Mix in OBS.",
+        stream_empty_hint,
         "In OBS Audio Input Capture, select",
     );
 
@@ -383,6 +427,8 @@ pub fn inspect_virtual_cables(
         virtual_mic,
         stream_mix,
         all_routes_healthy,
+        spare_outputs,
+        can_free_cable_for_stream,
     }
 }
 
@@ -829,16 +875,27 @@ pub fn is_setup_invocation<I: IntoIterator<Item = String>>(args: I) -> bool {
     args.into_iter().skip(1).any(|a| a == SETUP_CABLES_FLAG)
 }
 
+/// Exit code `--setup-cables` returns when Windows must restart before the cables appear
+/// (`ERROR_SUCCESS_REBOOT_REQUIRED`); the installer then offers a restart on its last page.
+pub const SETUP_REBOOT_EXIT_CODE: i32 = 3010;
+
 /// Headless setup run by the installer: installs VB-CABLE and the Hi-Fi Cable when missing and
 /// applies the Stellars endpoint names. The installer is already elevated, so no extra prompt is
-/// needed. Returns a log of what happened; it never panics so the installation can always finish.
-pub fn run_installer_setup() -> Vec<String> {
-    let mut actions = match run_elevated_vbcable_installer(true, false) {
-        Ok((actions, _reboot_recommended)) => actions,
-        Err(err) => vec![format!("Virtual cable setup failed: {err}")],
+/// needed. Returns a log of what happened and whether a restart is needed; it never panics so the
+/// installation can always finish.
+pub fn run_installer_setup() -> (Vec<String>, bool) {
+    let (mut actions, reboot_recommended) = match run_elevated_vbcable_installer(true, false) {
+        Ok(result) => result,
+        Err(err) => (vec![format!("Virtual cable setup failed: {err}")], false),
     };
-    actions.extend(apply_system_virtual_cable_names(&RouterConfig::default()));
-    actions
+    // Name each cable after the slot the app will give it on first launch, so the names seen in
+    // Discord and OBS are right from the start and do not change when Stellars opens.
+    let mut first_run_cfg = RouterConfig::default();
+    if let Ok(endpoints) = enumerate_audio_endpoints() {
+        let _ = auto_assign_virtual_routes(&mut first_run_cfg, &endpoints, false);
+    }
+    actions.extend(apply_system_virtual_cable_names(&first_run_cfg));
+    (actions, reboot_recommended)
 }
 
 fn driver_staging_dir() -> PathBuf {
@@ -882,7 +939,11 @@ pub fn run_elevated_vbcable_installer(
         script_path.display().to_string().replace('\'', "''")
     );
 
+    // Windows may make a new cable the default device; remember the user's own devices first.
+    let defaults_before = DefaultDevices::capture_now();
+
     let output = Command::new("powershell.exe")
+        .creation_flags(CREATE_NO_WINDOW)
         .args([
             "-NoProfile",
             "-NonInteractive",
@@ -938,6 +999,8 @@ pub fn run_elevated_vbcable_installer(
         thread::sleep(Duration::from_millis(500));
     }
 
+    actions.extend(restore_if_taken_over(&defaults_before));
+
     Ok((actions, reboot_recommended))
 }
 
@@ -965,6 +1028,30 @@ function Write-Step([string]$msg) {{
     $log.Add($msg)
 }}
 
+# Downloads over HTTPS and keeps the file only when its SHA-256 matches the pinned value.
+function Get-VerifiedDownload([string]$url, [string]$sha256, [string]$outFile) {{
+    if (-not $url.StartsWith('https://')) {{ return $false }}
+    try {{
+        Invoke-WebRequest -Uri $url -OutFile $outFile -UseBasicParsing -TimeoutSec 30
+    }} catch {{
+        Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
+        return $false
+    }}
+    $actual = (Get-FileHash -LiteralPath $outFile -Algorithm SHA256).Hash
+    if ($actual -ne $sha256) {{
+        Remove-Item -LiteralPath $outFile -Force -ErrorAction SilentlyContinue
+        Write-Step "Rejected a download from $url because its checksum did not match"
+        return $false
+    }}
+    return $true
+}}
+
+# An installer only runs when it carries a valid Authenticode signature from VB-Audio's author.
+function Test-VbAudioSigned([string]$path) {{
+    $sig = Get-AuthenticodeSignature -LiteralPath $path
+    return ($sig.Status -eq 'Valid' -and $sig.SignerCertificate.Subject -match 'Vincent Burel|BUREL VINCENT')
+}}
+
 try {{
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
@@ -988,12 +1075,11 @@ try {{
         if (-not (Test-Path (Join-Path $vbDir 'VBCABLE_Setup_x64.exe'))) {{
             New-Item -ItemType Directory -Force -Path $vbDir | Out-Null
             $downloaded = $false
-            foreach ($url in @('{vb_url_0}', '{vb_url_1}')) {{
-                try {{
-                    Invoke-WebRequest -Uri $url -OutFile $vbZip -UseBasicParsing -TimeoutSec 30
+            foreach ($pkg in @(@('{vb_url_0}', '{vb_sha_0}'), @('{vb_url_1}', '{vb_sha_1}'))) {{
+                if (Get-VerifiedDownload $pkg[0] $pkg[1] $vbZip) {{
                     $downloaded = $true
                     break
-                }} catch {{}}
+                }}
             }}
             if ($downloaded -and (Test-Path $vbZip)) {{
                 Expand-Archive -Path $vbZip -DestinationPath $vbDir -Force
@@ -1007,7 +1093,9 @@ try {{
             pnputil.exe /add-driver $infPath /install | Out-Null
             Write-Step 'Staged vbMmeCable64_win10.inf in Windows Driver Store'
         }}
-        if (-not $vbPresent -and (Test-Path $setupExe)) {{
+        if (-not $vbPresent -and (Test-Path $setupExe) -and -not (Test-VbAudioSigned $setupExe)) {{
+            Write-Step 'Skipped the VB-CABLE installer because its signature could not be verified'
+        }} elseif (-not $vbPresent -and (Test-Path $setupExe)) {{
             Start-Process -FilePath $setupExe -ArgumentList '-i','-h' -WorkingDirectory $vbDir -Wait -WindowStyle Hidden
             Write-Step 'Installed VB-Audio Virtual Cable (CABLE Input / CABLE Output)'
         }}
@@ -1027,19 +1115,20 @@ try {{
             if (-not (Test-Path $hifiExe)) {{
                 New-Item -ItemType Directory -Force -Path $hifiDir | Out-Null
                 $downloadedHifi = $false
-                foreach ($url in @('{hifi_url_0}', '{hifi_url_1}')) {{
-                    try {{
-                        Invoke-WebRequest -Uri $url -OutFile $hifiZip -UseBasicParsing -TimeoutSec 30
+                foreach ($pkg in @(@('{hifi_url_0}', '{hifi_sha_0}'))) {{
+                    if (Get-VerifiedDownload $pkg[0] $pkg[1] $hifiZip) {{
                         $downloadedHifi = $true
                         break
-                    }} catch {{}}
+                    }}
                 }}
                 if ($downloadedHifi -and (Test-Path $hifiZip)) {{
                     Expand-Archive -Path $hifiZip -DestinationPath $hifiDir -Force
                     Write-Step 'Downloaded official WHQL VB-Audio Hi-Fi Cable package'
                 }}
             }}
-            if (-not $hifiPresent -and (Test-Path $hifiExe)) {{
+            if (-not $hifiPresent -and (Test-Path $hifiExe) -and -not (Test-VbAudioSigned $hifiExe)) {{
+                Write-Step 'Skipped the Hi-Fi Cable installer because its signature could not be verified'
+            }} elseif (-not $hifiPresent -and (Test-Path $hifiExe)) {{
                 Start-Process -FilePath $hifiExe -ArgumentList '-i','-h' -WorkingDirectory $hifiDir -Wait -WindowStyle Hidden
                 Write-Step 'Installed VB-Audio Hi-Fi Cable (Hi-Fi Cable Input / Output)'
             }}
@@ -1096,16 +1185,43 @@ if ($rebootNeeded) {{
 }}
 [System.IO.File]::WriteAllLines($statusFile, $log)
 "#,
-        vb_url_0 = VBCABLE_DOWNLOAD_URLS[0],
-        vb_url_1 = VBCABLE_DOWNLOAD_URLS[1],
-        hifi_url_0 = HIFICABLE_DOWNLOAD_URLS[0],
-        hifi_url_1 = HIFICABLE_DOWNLOAD_URLS[1],
+        vb_url_0 = VBCABLE_DOWNLOADS[0].0,
+        vb_sha_0 = VBCABLE_DOWNLOADS[0].1,
+        vb_url_1 = VBCABLE_DOWNLOADS[1].0,
+        vb_sha_1 = VBCABLE_DOWNLOADS[1].1,
+        hifi_url_0 = HIFICABLE_DOWNLOADS[0].0,
+        hifi_sha_0 = HIFICABLE_DOWNLOADS[0].1,
     )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn driver_downloads_are_https_with_pinned_sha256() {
+        for (url, sha) in VBCABLE_DOWNLOADS.iter().chain(HIFICABLE_DOWNLOADS.iter()) {
+            assert!(url.starts_with("https://"), "download must use https: {url}");
+            assert_eq!(sha.len(), 64, "pinned hash must be SHA-256: {url}");
+            assert!(sha.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_lowercase()));
+        }
+    }
+
+    #[test]
+    fn setup_script_verifies_downloads_and_installer_signatures() {
+        let script = build_elevated_powershell_script(
+            Path::new("C:\\staging"),
+            Path::new("C:\\status.txt"),
+            true,
+            false,
+        );
+        assert!(!script.contains("http://"));
+        assert!(script.contains("Get-VerifiedDownload"));
+        assert_eq!(script.matches("Test-VbAudioSigned").count(), 3, "definition plus one check per installer");
+        for (_, sha) in VBCABLE_DOWNLOADS.iter().chain(HIFICABLE_DOWNLOADS.iter()) {
+            assert!(script.contains(sha));
+        }
+    }
 
     fn sample_endpoints() -> Vec<AudioEndpointInfo> {
         vec![
@@ -1242,6 +1358,67 @@ mod tests {
             Some("ep-headphones"),
             "Physical headphones must be pinned when Windows switches default to VB-CABLE"
         );
+    }
+
+    /// A fresh install has only VB-CABLE and the Hi-Fi Cable (no Oculus/Steam/extra cables).
+    fn fresh_install_endpoints() -> Vec<AudioEndpointInfo> {
+        sample_endpoints()
+            .into_iter()
+            .filter(|e| e.id != "ep-oculus-render")
+            .collect()
+    }
+
+    #[test]
+    fn fresh_install_with_two_cables_routes_sink_and_mic_and_explains_stream() {
+        let eps = fresh_install_endpoints();
+        let mut cfg = RouterConfig::default();
+        let _ = auto_assign_virtual_routes(&mut cfg, &eps, false);
+        assert_eq!(cfg.virtual_mic_output_device_id.as_deref(), Some("ep-vbcable-in"));
+        assert_eq!(cfg.dummy_sink_device_id.as_deref(), Some("ep-hifi-in"));
+        assert_eq!(cfg.stream.output_device_id, None);
+
+        let status = inspect_virtual_cables(&cfg, &eps);
+        assert_eq!(status.stream_mix.status, "unassigned");
+        assert!(status.stream_mix.hint.starts_with("No spare cable"), "{}", status.stream_mix.hint);
+        assert!(!status.can_free_cable_for_stream, "only headphones: nothing spare to offer");
+    }
+
+    #[test]
+    fn a_spare_monitor_output_is_offered_to_free_the_hifi_cable_for_stream() {
+        let mut eps = fresh_install_endpoints();
+        eps.push(AudioEndpointInfo {
+            id: "ep-monitor".into(),
+            name: "MAG 245F X24 (NVIDIA High Definition Audio)".into(),
+            flow: "Render".into(),
+            is_default: false,
+            is_dummy_sink_candidate: false,
+            is_virtual_mic_candidate: false,
+        });
+        let mut cfg = RouterConfig::default();
+        let _ = auto_assign_virtual_routes(&mut cfg, &eps, false);
+        // Physical outputs are never chosen automatically.
+        assert_eq!(cfg.dummy_sink_device_id.as_deref(), Some("ep-hifi-in"));
+        let status = inspect_virtual_cables(&cfg, &eps);
+        assert!(status.can_free_cable_for_stream);
+        assert_eq!(status.spare_outputs.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), vec!["ep-monitor"]);
+
+        // Accepting the suggestion: monitor becomes the silent sink, the Hi-Fi Cable the Stream Mix.
+        cfg.dummy_sink_device_id = Some("ep-monitor".into());
+        cfg.stream.output_device_id = Some("ep-hifi-in".into());
+        let status = inspect_virtual_cables(&cfg, &eps);
+        assert!(status.all_routes_healthy, "{status:?}");
+        assert!(status.silent_sink.hint.starts_with("Muted by Stellars"));
+        assert!(!status.can_free_cable_for_stream);
+    }
+
+    #[test]
+    fn stream_hint_suggests_a_cable_when_one_is_free() {
+        let eps = sample_endpoints();
+        let mut cfg = RouterConfig::default();
+        let _ = auto_assign_virtual_routes(&mut cfg, &eps, false);
+        cfg.stream.output_device_id = None;
+        let status = inspect_virtual_cables(&cfg, &eps);
+        assert!(status.stream_mix.hint.starts_with("Unassigned"), "{}", status.stream_mix.hint);
     }
 
     #[test]

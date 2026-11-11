@@ -403,6 +403,8 @@
         silentSink.status === "ready" &&
         virtualMic.status === "ready" &&
         streamMix.status === "ready",
+      spareOutputs: [],
+      canFreeCableForStream: false,
     };
   }
 
@@ -1025,6 +1027,8 @@
         streamOutputDeviceId: streamOutputDeviceId !== undefined ? streamOutputDeviceId : undefined,
       });
       await handleRefreshProcesses();
+      // The cable cards' states and hints depend on the new assignment.
+      await refreshStreamDevices();
     } catch (err) {
       if (isTauriConnected) {
         statusMessage = `Device switch error: ${String(err)}`;

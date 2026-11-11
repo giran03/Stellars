@@ -84,6 +84,12 @@ body::-webkit-scrollbar,
 .route-card-select .studio-select-trigger{width:100%!important;height:auto!important;min-height:36px!important;padding:9px 12px!important}
 .route-hint{font-size:9.5px;line-height:1.55;color:#a99db9;margin:0;margin-top:auto;overflow-wrap:anywhere}
 .route-hint.conflict{color:#ffc4d7}
+.free-cable{display:flex;flex-direction:column;gap:8px;padding-top:10px;border-top:1px solid #ffffff0d}
+.free-cable-text{font-size:9.5px;line-height:1.55;color:#c9bfd9;margin:0;overflow-wrap:anywhere}
+.free-cable-text strong{color:#e9e2f5;font-weight:600}
+.free-cable-row{display:flex;gap:8px;align-items:center;min-width:0}
+.free-cable-row .studio-select{flex:1;min-width:0}
+.free-cable-row .quiet-button{flex-shrink:0;white-space:nowrap}
 @media(max-width:1050px){.virtual-routes-grid{grid-template-columns:1fr}}
 @media(max-width:720px){.hardware-physical-grid{grid-template-columns:1fr}.live-studio .hardware-drawer{padding:16px}}
 

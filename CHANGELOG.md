@@ -46,6 +46,7 @@ All notable changes to Stellars are recorded here, newest version first.
 - Click-and-drag scrolling: hold the left mouse button on empty space and drag up or down to scroll the page or any scrollable list, with smooth damping and a short momentum glide on release. Buttons, sliders, graphs and draggable items are unaffected.
 
 ### Changed
+- A spare output you don't listen to, such as a monitor, can now be the silent sink. The Stream cable card offers this when both virtual cables are in use: pick the output and Stellars mutes it, uses it as the silent sink and moves the freed cable to the Stream Mix. Stellars keeps that output muted, and unmutes it when it stops being the silent sink.
 - Stream settings redesigned with app icons, a calmer layout, and autosave with status feedback.
 - Default window width 1280.
 - Settings changed with faders, mutes and the EQ are saved once, shortly after the last change, and again when the app quits, so a crash can no longer leave a damaged settings file.
@@ -62,13 +63,20 @@ All notable changes to Stellars are recorded here, newest version first.
 - Cleaner interface: removed taglines and repeated explanations (page slogan, "Made for the way you listen", section notes, routing and Fine-tune intro lines, duplicate EQ hints, "Not used on this channel" and the Plain setup descriptions, and the placeholder note in Updates).
 
 ### Fixed
+- The virtual cable setup now only accepts the VB-Audio driver packages it expects: downloads must use HTTPS and match a known checksum, the plain-HTTP fallback mirror is gone, and an installer only runs when it carries VB-Audio's valid digital signature.
 - Stack overflow at startup (the main thread now has an 8 MiB stack).
 - Window dragging from the custom title bar.
 - Stream playback ignoring the Stream faders; overlapping updates while dragging could leave a stale level.
 - The audio underrun counter never counted; it now counts real gaps.
 - Left-clicking the tray icon no longer opens the context menu (it opens the window; right-click shows the menu).
 - The Stream badge in the sidebar now disappears when the Stream mix is turned off and returns when it is turned on.
-- The installer now also names the virtual audio cables it installs (Stellars - Microphone, Stellars - Stream Mix), instead of leaving that to the first launch.
+- The installer now also names the virtual audio cables it installs, after the role each one gets on first launch (for example Stellars - Microphone), so the names in Discord and OBS are right from the start and do not change when Stellars opens.
+- Installing the virtual cables no longer takes over your speakers or microphone: if Windows switches the default playback or recording device to a new cable, Stellars puts your own device back.
+- The window no longer freezes while One-click Install / Repair downloads and installs the cables, or while Auto-route reassigns them.
+- No console window flashes during virtual cable setup.
+- When the cable drivers need a restart before Windows shows them, the installer now offers to restart on its last page.
+- The cable cards now update right after you change a device, instead of showing the old status.
+- The Stream cable card now explains when there is no spare virtual cable for a Stream Mix (both cables already carry the silent sink and the mic) instead of suggesting a cable that would only cause a conflict.
 
 ### Removed
 - The redundant Audio Settings button in the header.

@@ -8,6 +8,7 @@ use crate::interop::cables::{
     VirtualCableStatusPayload,
 };
 use crate::interop::policy::clear_all_persisted_endpoints;
+use crate::interop::silent_sink;
 use crate::interop::sessions::{
     enumerate_audio_endpoints, ActiveAudioProcess, AudioEndpointInfo,
 };
@@ -51,6 +52,12 @@ pub struct AppState {
     config_saver: DebouncedSaver,
 }
 
+fn log_actions(actions: Vec<String>) {
+    for line in actions {
+        logging::info(&line);
+    }
+}
+
 impl AppState {
     pub fn new(config_path: PathBuf) -> Self {
         let is_first_run = !config_path.exists();
@@ -64,11 +71,15 @@ impl AppState {
         let meter_pacing = Arc::new(MeterPacing::new());
         meter_pacing.set_saving_enabled(settings.save_resources_in_background);
         let mut initial_cfg = RouterConfig::load_from_path(&config_path);
-        if is_first_run {
-            if let Ok(endpoints) = enumerate_audio_endpoints() {
-                let _ = auto_assign_virtual_routes(&mut initial_cfg, &endpoints, false);
+        let startup_endpoints = enumerate_audio_endpoints().ok();
+        if let Some(endpoints) = &startup_endpoints {
+            if is_first_run {
+                let _ = auto_assign_virtual_routes(&mut initial_cfg, endpoints, false);
                 let _ = initial_cfg.save_to_path(&config_path);
             }
+            // A spare output used as the silent sink must stay muted, even if it was unmuted
+            // in Windows while Stellars was closed.
+            log_actions(silent_sink::sync_mute(None, &initial_cfg, endpoints));
         }
         let _ = apply_system_virtual_cable_names(&initial_cfg);
         let engine = Arc::new(Mutex::new(AudioRouterEngine::start(initial_cfg)));
@@ -578,6 +589,7 @@ pub fn set_audio_devices(
             .lock()
             .map_err(|_| "Config lock poisoned".to_string())?
             .clone();
+        let previous_sink = cfg.dummy_sink_device_id.clone();
 
         cfg.master_output_device_id = master_output_device_id.filter(|s| !s.trim().is_empty());
         cfg.dummy_sink_device_id = dummy_sink_device_id.filter(|s| !s.trim().is_empty());
@@ -591,6 +603,9 @@ pub fn set_audio_devices(
         validate_stream_destination(&cfg, &cfg.stream)?;
 
         let _ = apply_system_virtual_cable_names(&cfg);
+        if let Ok(endpoints) = enumerate_audio_endpoints() {
+            log_actions(silent_sink::sync_mute(previous_sink.as_deref(), &cfg, &endpoints));
+        }
         let _ = cfg.save_to_path(&state.config_path);
         engine_guard.shutdown();
         *engine_guard = AudioRouterEngine::start(cfg.clone());
@@ -638,7 +653,8 @@ pub fn get_virtual_cable_status(
     Ok(inspect_virtual_cables(&cfg, &endpoints))
 }
 
-#[tauri::command]
+// `async`: runs off the UI thread, so the window keeps responding while the engine restarts.
+#[tauri::command(async)]
 pub fn auto_route_virtual_cables(
     state: State<'_, AppState>,
     overwrite_existing: Option<bool>,
@@ -654,6 +670,7 @@ pub fn auto_route_virtual_cables(
         .map_err(|_| "Config lock poisoned".to_string())?
         .clone();
 
+    let previous_sink = cfg.dummy_sink_device_id.clone();
     let mut actions_taken = auto_assign_virtual_routes(
         &mut cfg,
         &initial_endpoints,
@@ -661,6 +678,7 @@ pub fn auto_route_virtual_cables(
     );
     let rename_actions = apply_system_virtual_cable_names(&cfg);
     actions_taken.extend(rename_actions);
+    actions_taken.extend(silent_sink::sync_mute(previous_sink.as_deref(), &cfg, &initial_endpoints));
 
     let endpoints = enumerate_audio_endpoints().unwrap_or(initial_endpoints);
     let _ = cfg.save_to_path(&state.config_path);
@@ -678,7 +696,8 @@ pub fn auto_route_virtual_cables(
     })
 }
 
-#[tauri::command]
+// `async`: the download and driver install take a while; on the UI thread the window would freeze.
+#[tauri::command(async)]
 pub fn install_or_repair_virtual_cables(
     state: State<'_, AppState>,
     install_hifi_cable: Option<bool>,
