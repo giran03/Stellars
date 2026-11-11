@@ -11,6 +11,18 @@ All notable changes to Stellars are recorded here, newest version first.
 
 ---
 
+## [1.0.2] - in development
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
+---
+
 ## [1.0.1] - 2026-11-11
 
 ### Added
