@@ -57,3 +57,6 @@ test_icon.ico
 coverage/
 playwright-report/
 test-results/
+
+# Brand assets (kept locally, not published)
+brand-kit/
