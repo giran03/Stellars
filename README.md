@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="brand-kit/stellars-lockup-horizontal-dark.svg">
-  <img src="brand-kit/stellars-lockup-horizontal-color.svg" alt="Stellars" width="420">
+  <source media="(prefers-color-scheme: dark)" srcset="docs/media/stellars-lockup-horizontal-dark.svg">
+  <img src="docs/media/stellars-lockup-horizontal-color.svg" alt="Stellars" width="420">
 </picture>
 
 ### Give every app its own mix. Shape each one in real time.
@@ -146,7 +146,7 @@ Five channels, each with its own fader, pre-gain, solo, mute and live meters. Ch
 
 <div align="center">
 
-<img src="brand-kit/stellars-symbol-color.svg" alt="" width="40">
+<img src="docs/media/stellars-symbol-color.svg" alt="" width="40">
 
 **Stellars** · Designed and built by **CafeTako Team**
 

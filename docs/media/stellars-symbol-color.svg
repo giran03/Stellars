@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title-stellars-color">
+  <title id="title-stellars-color">Stellars Pulsar Prism Symbol</title>
+  <!-- Pulsar Star (Spectroscopy Violet #B8A1FA) with Central Aperture -->
+  <path fill-rule="evenodd" fill="#B8A1FA" d="
+    M 128 20
+    C 128 82, 174 128, 236 128
+    C 174 128, 128 174, 128 236
+    C 128 174, 82 128, 20 128
+    C 82 128, 128 82, 128 20 Z
+    M 128 86
+    L 170 128
+    L 128 170
+    L 86 128 Z
+  "/>
+  <!-- Central Prism Core (Celestial Warm Gold #EDC990) -->
+  <polygon points="128,108 148,128 128,148 108,128" fill="#EDC990" />
+  <!-- Acoustic Wave Arcs (Radiant Electric Teal #87DDCF) -->
+  <path fill="#87DDCF" d="
+    M 174 62 A 96 96 0 0 1 194 82 L 185 91 A 84 84 0 0 0 165 71 Z
+  "/>
+  <path fill="#87DDCF" d="
+    M 188 48 A 116 116 0 0 1 208 68 L 199 77 A 104 104 0 0 0 179 57 Z
+  "/>
+  <path fill="#87DDCF" d="
+    M 82 194 A 96 96 0 0 1 62 174 L 71 165 A 84 84 0 0 0 91 185 Z
+  "/>
+  <path fill="#87DDCF" d="
+    M 68 208 A 116 116 0 0 1 48 188 L 57 179 A 104 104 0 0 0 77 199 Z
+  "/>
+  <!-- Harmonic Orbit Nodes (Stream Cyan #9BD6FF) -->
+  <circle cx="70" cy="70" r="7" fill="#9BD6FF" />
+  <circle cx="186" cy="186" r="7" fill="#9BD6FF" />
+</svg>
