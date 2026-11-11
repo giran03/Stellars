@@ -22,6 +22,7 @@
   import BackupsPanel from "./BackupsPanel.svelte";
   import PresetsPanel from "./PresetsPanel.svelte";
   import MixingPanel from "./MixingPanel.svelte";
+  import { checkForUpdates, downloadUpdate, installUpdate, updateState } from "../updates.svelte";
   import type { DuckingConfig, RouterConfig } from "../types";
   import {
     appSettings,
@@ -71,10 +72,6 @@
   const DEVELOPER = "CafeTako";
   const SUPPORT_EMAIL = "support@cafetako.com";
   const DONATION_URL = "https://buymeacoffee.com/cafetako";
-  /** Updates are read from the latest GitHub release of this repository. */
-  const RELEASES_REPO = "giran03/Stellars";
-  const LATEST_RELEASE_URL = `https://api.github.com/repos/${RELEASES_REPO}/releases/latest`;
-  const RELEASE_PAGE_PREFIX = `https://github.com/${RELEASES_REPO}/`;
   /** Version from package.json (injected at build time); the desktop app replaces it with the native one. */
   const FALLBACK_VERSION = __APP_VERSION__;
 
@@ -103,19 +100,13 @@
 
   let dialogEl = $state<HTMLDivElement>();
   let appVersion = $state(FALLBACK_VERSION);
+  const updateStatus = $derived(updateState.status);
   let showChangelog = $state(false);
   let dataDir = $state<string | null>(null);
   let saveError = $state<string | null>(null);
   let armed = $state<"reset" | "quit" | null>(null);
   let armTimer: ReturnType<typeof setTimeout> | undefined;
 
-  type UpdateState =
-    | { kind: "idle" }
-    | { kind: "checking" }
-    | { kind: "current" }
-    | { kind: "available"; version: string; url?: string; notes?: string }
-    | { kind: "error"; message: string };
-  let update = $state<UpdateState>({ kind: "idle" });
 
   // Diagnostics is a support tool; Simple mode keeps everyone else's tabs.
   const visibleTabs = $derived(appSettings.interfaceMode === "simple" ? TABS.filter((t) => t.id !== "diagnostics") : TABS);
@@ -195,57 +186,6 @@
       await invoke("open_data_folder");
     } catch (err) {
       saveError = `Could not open the data folder: ${String(err)}`;
-    }
-  }
-
-  /** Compares dotted numeric versions; true when `next` is newer than `current`. */
-  function isNewer(next: string, current: string): boolean {
-    const parse = (v: string) => v.replace(/^v/i, "").split(/[.+-]/).map((n) => parseInt(n, 10) || 0);
-    const a = parse(next);
-    const b = parse(current);
-    for (let i = 0; i < Math.max(a.length, b.length); i++) {
-      const diff = (a[i] ?? 0) - (b[i] ?? 0);
-      if (diff !== 0) return diff > 0;
-    }
-    return false;
-  }
-
-  type GithubRelease = { tag_name?: string; html_url?: string; body?: string };
-
-  /** The repository's latest published release, or null when none exists. */
-  async function fetchLatestRelease(): Promise<GithubRelease | null> {
-    const res = await fetch(LATEST_RELEASE_URL, {
-      cache: "no-store",
-      headers: { Accept: "application/vnd.github+json" },
-    });
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`GitHub answered ${res.status}`);
-    return ((await res.json()) as GithubRelease) ?? null;
-  }
-
-  /** Plain, short version of the release notes for the status line. */
-  function summarizeNotes(body: string | undefined): string | undefined {
-    const text = (body ?? "").replace(/<[^>]*>/g, " ").replace(/[#*_`>\[\]]/g, "").replace(/\s+/g, " ").trim();
-    if (!text) return undefined;
-    return text.length > 220 ? `${text.slice(0, 217)}…` : text;
-  }
-
-  async function checkForUpdates() {
-    if (update.kind === "checking") return;
-    update = { kind: "checking" };
-    try {
-      const release = await fetchLatestRelease();
-      if (!release?.tag_name) {
-        update = { kind: "error", message: "No published release was found." };
-        return;
-      }
-      const url = release.html_url?.startsWith(RELEASE_PAGE_PREFIX) ? release.html_url : `${RELEASE_PAGE_PREFIX}releases/latest`;
-      update = isNewer(release.tag_name, appVersion)
-        ? { kind: "available", version: release.tag_name.replace(/^v/i, ""), url, notes: summarizeNotes(release.body) }
-        : { kind: "current" };
-      await save({ lastUpdateCheck: new Date().toISOString() });
-    } catch (err) {
-      update = { kind: "error", message: err instanceof Error ? err.message : String(err) };
     }
   }
 
@@ -525,31 +465,67 @@
                   <button type="button" class="quiet-button" onclick={() => (showChangelog = true)}>
                     <StudioIcon name="info" size={14} /> Change log
                   </button>
-                  <button type="button" class="cable-install-button" disabled={update.kind === "checking"} onclick={checkForUpdates}>
+                  <button type="button" class="cable-install-button" disabled={!native || updateStatus.kind === "checking"} onclick={checkForUpdates}>
                     <StudioIcon name="reset" size={14} />
-                    {update.kind === "checking" ? "Checking…" : "Check for updates"}
+                    {updateStatus.kind === "checking" ? "Checking…" : "Check for updates"}
                   </button>
                 </div>
               </div>
-              {#if update.kind === "current"}
+              {#if !native}
+                <p class="update-status" role="status">Updates are checked by the desktop app.</p>
+              {:else if updateStatus.kind === "upToDate"}
                 <p class="update-status ok" role="status">You’re up to date.</p>
-              {:else if update.kind === "available"}
+              {:else if updateStatus.kind === "available"}
                 <div class="update-status ok" role="status">
-                  <strong>Version {update.version} is available.</strong>
-                  {#if update.notes}<span>{update.notes}</span>{/if}
-                  {#if update.url}
-                    <button type="button" class="quiet-button" onclick={() => openLink(update.kind === "available" ? (update.url ?? "") : "")}>
-                      <StudioIcon name="external" size={13} /> Download
+                  <strong>Version {updateStatus.release.version} is available.</strong>
+                  {#if updateStatus.release.notes}<span>{updateStatus.release.notes}</span>{/if}
+                  <div class="update-actions">
+                    <button type="button" class="cable-install-button" onclick={downloadUpdate}>
+                      <StudioIcon name="download" size={13} /> Download update
                     </button>
-                  {/if}
+                    <button type="button" class="quiet-button" onclick={() => openLink(updateStatus.kind === "available" ? updateStatus.release.pageUrl : "")}>
+                      <StudioIcon name="external" size={13} /> Release notes
+                    </button>
+                  </div>
                 </div>
-              {:else if update.kind === "error"}
-                <p class="update-status bad" role="alert">Couldn’t check for updates: {update.message}</p>
+              {:else if updateStatus.kind === "downloading"}
+                <p class="update-status" role="status">Downloading and checking version {updateStatus.version}…</p>
+              {:else if updateStatus.kind === "ready"}
+                <div class="update-status ok" role="status">
+                  <strong>Version {updateStatus.version} is ready to install.</strong>
+                  <span>Windows will ask for permission, then Stellars closes and reopens on the new version.</span>
+                  <div class="update-actions">
+                    <button type="button" class="cable-install-button" onclick={installUpdate}>
+                      <StudioIcon name="check" size={13} /> Install and restart
+                    </button>
+                  </div>
+                </div>
+              {:else if updateStatus.kind === "installing"}
+                <p class="update-status" role="status">Installing version {updateStatus.version}… Stellars will close and reopen.</p>
+              {:else if updateStatus.kind === "installFailed"}
+                <div class="update-status bad" role="alert">
+                  <strong>Couldn’t update to version {updateStatus.version}.</strong>
+                  <span>{updateStatus.message}</span>
+                  <div class="update-actions">
+                    <button type="button" class="quiet-button" onclick={downloadUpdate}>
+                      <StudioIcon name="reset" size={13} /> Retry download
+                    </button>
+                  </div>
+                </div>
+              {:else if updateStatus.kind === "failed"}
+                <p class="update-status bad" role="alert">Couldn’t check for updates: {updateStatus.message}</p>
               {/if}
             </div>
             <div class="settings-group">
-              <h4>Preferences <span class="soon-badge">Coming soon</span></h4>
-              {@render toggle("autoCheckUpdates", "Check for updates automatically", "Look for a new version each time Stellars starts.")}
+              <h4>Preferences</h4>
+              {@render segmented(
+                "Automatic updates",
+                "Notify me tells you when a new version is out. Automatic also installs it once your PC has been idle for ten minutes (Windows still asks for permission). Off stops background checks; Check for updates still works.",
+                [{ value: "off", label: "Off" }, { value: "notify", label: "Notify me" }, { value: "automatic", label: "Automatic" }],
+                appSettings.updateMode,
+                (v) => save({ updateMode: v as AppSettings["updateMode"] }),
+                true
+              )}
             </div>
 
           {:else if tab === "advanced"}
@@ -888,6 +864,8 @@
     align-items: flex-start;
     gap: 8px;
   }
+  .update-status { flex-wrap: wrap; }
+  .update-status .update-actions { flex-basis: 100%; justify-content: flex-start; margin-top: 4px; }
   .update-status.ok { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 35%, transparent); }
   .update-status.bad { color: #ffc4d7; border-color: #f0a7c633; }
   :global(:root[data-theme="light"]) .update-status.bad { color: #9c2f58; }

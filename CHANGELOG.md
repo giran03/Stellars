@@ -35,6 +35,8 @@ All notable changes to Stellars are recorded here, newest version first.
 - **Export support file** (Diagnostics): one file with diagnostics, settings and the recent log, with Windows user names removed, ready to attach to a bug report.
 - **Import and export of scenes, output profiles and saved sound presets** (Settings → Presets → Share). Imported items are added next to yours and never replace them; output devices from another PC are left unset.
 - **Tray quick actions:** mute or unmute the microphone, switch to the next scene, and restore Windows audio.
+- **Automatic updates.** Stellars now checks for a new version shortly after it starts and every few hours, and tells you when one is available. In Settings → Updates you can download the update (it is checked against the release's checksum), then choose Install and restart. Windows asks for permission, Stellars closes, updates and reopens by itself.
+- **Automatic updates setting** (Settings → Updates): Off, Notify me (the default) or Automatic, which also installs a new version once your PC has been idle for ten minutes. If you had automatic checks turned off before, they stay off.
 
 ### Changed
 

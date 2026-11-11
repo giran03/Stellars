@@ -6,6 +6,7 @@ pub mod dsp;
 pub mod interop;
 pub mod state;
 pub mod tray;
+pub mod update;
 
 use commands::AppState;
 use state::app_settings::CloseBehavior;
@@ -334,6 +335,7 @@ fn main() {
             run_auto_backup(app.handle());
             spawn_device_watcher(app.handle().clone());
             spawn_scene_watcher(app.handle().clone());
+            update::start(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -393,6 +395,10 @@ fn main() {
             commands::quit_application,
             commands::get_diagnostics,
             commands::get_log_tail,
+            commands::get_update_status,
+            commands::check_for_updates,
+            commands::download_update,
+            commands::install_update,
             commands::get_setup_checks,
             commands::restore_windows_audio,
             commands::resume_audio_engine,

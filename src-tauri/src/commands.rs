@@ -1080,6 +1080,29 @@ pub fn build_diagnostics(state: &AppState) -> Result<DiagnosticsReport, String> 
     })
 }
 
+/// Where the update check stands (the window also gets `update-status` events).
+#[tauri::command]
+pub fn get_update_status() -> crate::update::Status {
+    crate::update::current_status()
+}
+
+#[tauri::command]
+pub fn check_for_updates() {
+    crate::update::check_now();
+}
+
+/// Downloads and verifies the available update; installing stays the user's decision.
+#[tauri::command]
+pub fn download_update() {
+    crate::update::download();
+}
+
+/// Installs the update (downloading it first if needed) and restarts Stellars.
+#[tauri::command]
+pub fn install_update() {
+    crate::update::install();
+}
+
 /// Setup checks alone (cables, routes, Windows defaults), for the first-run wizard.
 #[tauri::command]
 pub fn get_setup_checks(state: State<'_, AppState>) -> Vec<HealthCheck> {

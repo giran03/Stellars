@@ -17,6 +17,7 @@
   import { getCurrentWindow } from "@tauri-apps/api/window";
   import PresetsMenu from "./components/PresetsMenu.svelte";
   import { appSettings, isNativeApp, loadAppSettings, updateAppSettings } from "./appSettings.svelte";
+  import { startUpdates } from "./updates.svelte";
   import { loadPresets } from "./presets.svelte";
   import { ALL_EQ_PRESETS, getEqPresetsForBus, type EqPreset } from "./dspMath";
   import {
@@ -1323,6 +1324,9 @@
         void loadRouterState();
         showToast("Windows audio restored · Stellars routing is paused. Resume it in Settings → Diagnostics.");
       })
+    );
+    void startUpdates((release) =>
+      showToast(`Stellars ${release.version} is available`, { label: "View", run: () => openSettings("updates") })
     );
     void invoke<{ recoveredFromCrash?: boolean }>("get_app_info")
       .then((info) => {

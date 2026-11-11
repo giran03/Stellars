@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 export type CloseBehavior = "tray" | "quit";
 export type InterfaceMode = "simple" | "advanced";
+export type UpdateMode = "off" | "notify" | "automatic";
 
 /** Mirrors `AppSettings` in src-tauri/src/state/app_settings.rs (camelCase over IPC). */
 export interface AppSettings {
@@ -19,7 +20,9 @@ export interface AppSettings {
   /** Slow the live meters when unfocused and stop them while minimized or in the tray. */
   saveResourcesInBackground: boolean;
   onboardingCompleted: boolean;
+  /** Older settings only; `updateMode` replaced it. */
   autoCheckUpdates: boolean;
+  updateMode: UpdateMode;
   lastUpdateCheck: string | null;
   interfaceMode: InterfaceMode;
   /** False until the user picks a mode in the wizard or the side prompt. */
@@ -41,6 +44,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   saveResourcesInBackground: true,
   onboardingCompleted: false,
   autoCheckUpdates: true,
+  updateMode: "notify",
   lastUpdateCheck: null,
   interfaceMode: "simple",
   interfaceModeChosen: false,

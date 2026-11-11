@@ -11,6 +11,19 @@ pub enum CloseBehavior {
     Quit,
 }
 
+/// What Stellars does about new releases.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum UpdateMode {
+    /// Never look for updates by itself (the "Check for updates" button still works).
+    Off,
+    /// Look for updates and tell the user; installing is the user's choice.
+    #[default]
+    Notify,
+    /// Install a new version by itself once the PC has been idle for a while.
+    Automatic,
+}
+
 /// How much of the interface is shown. The mode only hides or reveals controls; it never
 /// changes audio values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,7 +61,9 @@ pub struct AppSettings {
     /// Slow the live meters when the window is unfocused and stop them while it is hidden.
     pub save_resources_in_background: bool,
     pub onboarding_completed: bool,
+    /// Older settings only; `update_mode` replaced it (see `load_from_path`).
     pub auto_check_updates: bool,
+    pub update_mode: UpdateMode,
     pub last_update_check: Option<String>,
     #[serde(default = "existing_install_mode")]
     pub interface_mode: InterfaceMode,
@@ -74,6 +89,7 @@ impl Default for AppSettings {
             save_resources_in_background: true,
             onboarding_completed: false,
             auto_check_updates: true,
+            update_mode: UpdateMode::Notify,
             last_update_check: None,
             interface_mode: InterfaceMode::Simple,
             interface_mode_chosen: false,
@@ -94,8 +110,21 @@ impl AppSettings {
     pub fn load_from_path(path: &Path) -> Self {
         std::fs::read_to_string(path)
             .ok()
-            .and_then(|raw| serde_json::from_str::<AppSettings>(&raw).ok())
+            .and_then(|raw| Self::from_json(&raw))
             .unwrap_or_default()
+    }
+
+    /// Parses a settings file. Files written before `updateMode` existed keep their choice:
+    /// automatic checks switched off becomes `Off`.
+    fn from_json(raw: &str) -> Option<Self> {
+        let mut settings = serde_json::from_str::<AppSettings>(raw).ok()?;
+        let has_mode = serde_json::from_str::<serde_json::Value>(raw)
+            .ok()
+            .is_some_and(|v| v.get("updateMode").is_some());
+        if !has_mode && !settings.auto_check_updates {
+            settings.update_mode = UpdateMode::Off;
+        }
+        Some(settings)
     }
 
     pub fn save_to_path(&self, path: &Path) -> Result<(), String> {
@@ -110,6 +139,16 @@ impl AppSettings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn old_files_keep_their_update_choice() {
+        let off = AppSettings::from_json(r#"{"autoCheckUpdates":false}"#).unwrap();
+        assert_eq!(off.update_mode, UpdateMode::Off);
+        let on = AppSettings::from_json(r#"{"autoCheckUpdates":true}"#).unwrap();
+        assert_eq!(on.update_mode, UpdateMode::Notify);
+        let chosen = AppSettings::from_json(r#"{"autoCheckUpdates":false,"updateMode":"automatic"}"#).unwrap();
+        assert_eq!(chosen.update_mode, UpdateMode::Automatic);
+    }
 
     #[test]
     fn missing_fields_fall_back_to_defaults() {
