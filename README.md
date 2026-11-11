@@ -121,6 +121,11 @@ Five channels, each with its own fader, pre-gain, solo, mute and live meters. Ch
 - Microsoft Edge WebView2 (installed automatically if missing)
 - A virtual audio cable for the Stream and Mic routes. The installer sets up VB-CABLE for you, and Stellars can repair or re-route it later from **Hardware I/O**.
 
+> [!IMPORTANT]
+> **Keep one spare audio output free for the silent sink.** Stellars routes apps through a silent sink so you never hear them unprocessed. When both virtual cables are already taken (silent sink and virtual mic), there is no cable left for the Stream mix. In that case pick a spare physical output you don't listen to, such as a monitor's HDMI audio, in the **Stream** cable card. Stellars mutes it, uses it as the silent sink and hands the freed cable to the Stream mix. It unmutes the output again when it stops being the silent sink.
+>
+> The output can't be your monitor output or the Windows default device.
+
 ## 📥 Download and install
 
 1. Download the latest installer from the [Releases page](https://github.com/giran03/Stellars/releases/latest).
