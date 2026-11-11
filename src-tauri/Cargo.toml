@@ -1,6 +1,6 @@
 [package]
 name = "stellars"
-version = "1.0.0"
+version = "1.0.1"
 description = "Stellars — Lightweight Rust + Tauri Multi-Bus Audio Router & DSP Mixer"
 authors = ["Stellars"]
 edition = "2021"
