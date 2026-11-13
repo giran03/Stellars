@@ -67,6 +67,8 @@ body {
   font-size: 16px;
   line-height: 1.6;
   overflow-x: hidden;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 ::selection {
@@ -107,6 +109,7 @@ a {
 img {
   display: block;
   max-width: 100%;
+  -webkit-user-drag: none;
 }
 
 .mono {
