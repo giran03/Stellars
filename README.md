@@ -19,7 +19,7 @@ A multi-bus audio router and mixer for Windows.
 
 <sub>Drag Discord into Chat, balance it with ChatMix, switch the EQ to footsteps, add the noise gate and the Stream mix.</sub>
 
-[**Download**](https://github.com/giran03/Stellars/releases/latest) · [Features](#-features) · [Quick start](#-quick-start) · [Requirements](#-requirements)
+[**Product Showcase**](https://giran03.github.io/Stellars/) · [**Download**](https://github.com/giran03/Stellars/releases/latest) · [Features](#-features) · [Quick start](#-quick-start) · [Requirements](#-requirements)
 
 </div>
 
@@ -70,6 +70,8 @@ For Mic and Chat, with a fast engine (RNNoise) and a high-quality engine (DeepFi
 | 📊 **Live metering** <br> Peak, RMS and LUFS with clip indicators, plus a master limiter. | 🪄 **Quick recipes** <br> Streaming voice, Noisy room, Hear footsteps and more. | 🌗 **Light and dark** <br> Tactile theme switch, or press `Alt+T`. |
 
 ## 👀 Everything, one glance away
+
+Explore the interactive feature tour with annotated callouts on the [**Stellars Showcase**](https://giran03.github.io/Stellars/).
 
 [![The Stellars mixer: five channels with live meters, faders, ChatMix and the monitor output](docs/media/mixer.webp)](docs/media/mixer.webp)
 
@@ -150,6 +152,6 @@ Five channels, each with its own fader, pre-gain, solo, mute and live meters. Ch
 
 **Stellars** · Designed and built by **CafeTako Team**
 
-[Download](https://github.com/giran03/Stellars/releases/latest) · [Changelog](CHANGELOG.md)
+[Showcase](https://giran03.github.io/Stellars/) · [Download](https://github.com/giran03/Stellars/releases/latest) · [Changelog](CHANGELOG.md)
 
 </div>

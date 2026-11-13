@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stellars — Multi-Bus Audio Router & Real-Time DSP Mixer for Windows</title>
+    <meta
+      name="description"
+      content="Give every app its own mix. Shape each one in real time. Stellars is a 100% user-mode multi-bus audio router and 48 kHz DSP mixer for Windows 10 and 11."
+    />
+    <link rel="icon" type="image/svg+xml" href="media/stellars-symbol-color.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand-link" href="#top" aria-label="Stellars home">
+          <img
+            class="brand-lockup"
+            src="media/stellars-lockup-horizontal-dark.svg"
+            alt="Stellars"
+            width="156"
+            height="28"
+          />
+        </a>
+
+        <nav class="nav-links" aria-label="Primary navigation">
+          <a href="#tour">Console Tour</a>
+          <a href="#architecture">Signal Flow</a>
+          <a href="#dsp">Sound Shaping</a>
+          <a href="#stream">Stream Mix</a>
+          <a href="#requirements">Requirements</a>
+          <a href="#quickstart">Quick Start</a>
+        </nav>
+
+        <div class="header-actions">
+          <a
+            class="btn btn-ghost"
+            href="https://github.com/giran03/Stellars"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
+          </a>
+          <a
+            class="btn btn-primary"
+            href="https://github.com/giran03/Stellars/releases/latest"
+            data-download-exe
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Download
+          </a>
+        </div>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="container hero-grid">
+          <div>
+            <h1 class="hero-title">Give every app its own mix. Shape each one in real time.</h1>
+            <p class="hero-copy">
+              Stellars is a multi-bus audio router and 48 kHz Float32 DSP mixer for Windows 10 and 11.
+              Route games, voice chat, music, and your microphone across five dedicated channels—with
+              zero kernel drivers and under 15 MB RAM in the system tray.
+            </p>
+            <div class="hero-actions">
+              <a
+                class="btn btn-primary btn-lg"
+                href="https://github.com/giran03/Stellars/releases/latest"
+                data-download-exe
+                data-download-label="Download for Windows"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Download for Windows
+              </a>
+              <a class="btn btn-secondary btn-lg" href="#tour">
+                Explore Interactive Tour
+              </a>
+            </div>
+            <div class="hero-specs">
+              <span class="spec-pill">
+                <span class="spec-dot violet"></span>
+                <span>100% Ring-3 user-mode · No kernel driver</span>
+              </span>
+              <span class="spec-pill">
+                <span class="spec-dot"></span>
+                <span>48 kHz stereo Float32 · 10 ms frame</span>
+              </span>
+              <span class="spec-pill">
+                <span class="spec-dot stream"></span>
+                <span>Independent Stream Mix cable</span>
+              </span>
+              <span class="spec-pill">
+                <span class="spec-dot gold"></span>
+                <span>Windows 10 (20348+) &amp; Windows 11</span>
+              </span>
+            </div>
+          </div>
+
+          <div class="hero-visual">
+            <div class="media-frame">
+              <img
+                src="media/stellars-showcase-16x9.gif"
+                alt="Stellars in action: dragging Discord into Chat, balancing Game and Chat with ChatMix, switching EQ to FPS Footsteps, enabling the noise gate and Stream mix"
+              />
+              <div class="media-caption">
+                <span>Drag Discord into Chat, balance with ChatMix, shape EQ, and toggle Stream Mix.</span>
+                <span class="mono">v1.0.2</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="bus-strip" aria-label="Five audio buses">
+        <div class="container">
+          <div class="bus-row">
+            <article class="bus-chip">
+              <div class="bus-chip-head">
+                <span class="bus-swatch" style="background: var(--bus-game)"></span>
+                <strong>Game</strong>
+              </div>
+              <p>Competitive titles and 3D audio with presets like FPS Footsteps.</p>
+            </article>
+            <article class="bus-chip">
+              <div class="bus-chip-head">
+                <span class="bus-swatch" style="background: var(--bus-chat)"></span>
+                <strong>Chat</strong>
+              </div>
+              <p>Discord, TeamSpeak, and voice comms with AI noise suppression.</p>
+            </article>
+            <article class="bus-chip">
+              <div class="bus-chip-head">
+                <span class="bus-swatch" style="background: var(--bus-media)"></span>
+                <strong>Media</strong>
+              </div>
+              <p>Spotify, browsers, and background playlists balanced independently.</p>
+            </article>
+            <article class="bus-chip">
+              <div class="bus-chip-head">
+                <span class="bus-swatch" style="background: var(--bus-aux)"></span>
+                <strong>Aux</strong>
+              </div>
+              <p>Alerts, soundboards, OBS monitoring, or secondary applications.</p>
+            </article>
+            <article class="bus-chip">
+              <div class="bus-chip-head">
+                <span class="bus-swatch" style="background: var(--bus-mic)"></span>
+                <strong>Mic</strong>
+              </div>
+              <p>Hardware microphone pipeline with gate, compressor, de-esser, and AI denoise.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="tour" class="section">
+        <div class="container">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Everything, one glance away</h2>
+              <p class="section-lead">
+                Click any numbered pin or switch views below to inspect how Stellars organizes routing,
+                metering, parametric EQ, and your Stream mix.
+              </p>
+            </div>
+          </div>
+
+          <div class="tour-toolbar">
+            <div id="tour-tabs" class="tour-tabs" role="tablist" aria-label="Console views"></div>
+            <div class="tour-controls">
+              <button
+                id="toggle-all-bubbles"
+                class="toggle-pill"
+                type="button"
+                aria-pressed="false"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                <span>Show all text bubbles</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="tour-stage">
+            <div id="stage-canvas" class="stage-canvas">
+              <img id="stage-image" class="stage-image" src="media/mixer.webp" alt="" />
+              <div class="stage-scrim" aria-hidden="true"></div>
+              <div id="hotspots-layer"></div>
+            </div>
+
+            <div class="tour-dock" aria-live="polite">
+              <div>
+                <h3 id="dock-title" class="dock-active-title"></h3>
+                <p id="dock-desc" class="dock-active-desc"></p>
+              </div>
+              <div class="dock-nav">
+                <button id="tour-prev" class="btn btn-ghost" type="button" aria-label="Previous callout">
+                  Prev
+                </button>
+                <span id="dock-counter" class="dock-counter mono">1 / 7</span>
+                <button id="tour-next" class="btn btn-secondary" type="button" aria-label="Next callout">
+                  Next
+                </button>
+              </div>
+            </div>
+
+            <div id="tour-list" class="tour-list" aria-label="Callout index"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="architecture" class="section">
+        <div class="container">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Anti-cheat safe, user-mode routing</h2>
+              <p class="section-lead">
+                Stellars runs entirely in Ring-3 user mode using Windows Process Loopback and a silent
+                dummy sink—never installing a kernel driver of its own.
+              </p>
+            </div>
+          </div>
+
+          <div class="flow-diagram">
+            <article class="flow-node">
+              <span class="flow-badge">1 · Capture</span>
+              <h3>Per-PID Process Loopback</h3>
+              <p>
+                Captures audio directly from each running executable via
+                <span class="mono">VAD\Process_Loopback</span> using
+                <span class="mono">PROCESS_QUERY_LIMITED_INFORMATION</span> only.
+              </p>
+            </article>
+
+            <article class="flow-node">
+              <span class="flow-badge gold">2 · Redirect</span>
+              <h3>Silent Dummy Sink</h3>
+              <p>
+                Redirects routed apps through <span class="mono">IAudioPolicyConfig</span> to a
+                silent sink so you never hear unprocessed double-audio.
+              </p>
+            </article>
+
+            <article class="flow-node">
+              <span class="flow-badge teal">3 · Process</span>
+              <h3>Lock-Free 48 kHz DSP</h3>
+              <p>
+                Each bus runs 48,000 Hz stereo Float32 processing with 10-band RBJ biquad EQ,
+                dynamics, and <span class="mono">rtrb</span> SPSC ring buffers.
+              </p>
+            </article>
+
+            <article class="flow-node">
+              <span class="flow-badge stream">4 · Output</span>
+              <h3>Monitor &amp; Stream Mix</h3>
+              <p>
+                Sends your balanced mix + ChatMix through a <span class="mono">-0.1 dBFS</span>
+                master limiter to headphones, and an independent mix to Stream.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section id="dsp" class="section">
+        <div class="container">
+          <div class="feature-split">
+            <div>
+              <h2 class="section-title">Sound shaping without modal clutter</h2>
+              <p class="section-lead">
+                Every channel carries a full parametric EQ and dynamics rack, engineered for immediate
+                visual feedback and zipper-free adjustments.
+              </p>
+
+              <div class="feature-list">
+                <div class="feature-item">
+                  <h3>10-Band Parametric EQ &amp; A/B Comparison</h3>
+                  <p>
+                    Direct Form II Transposed RBJ biquads with 128-frame linear ramping. Drag nodes
+                    on the curve, switch presets (Flat, FPS Footsteps, Voice Clarity, Bass Boost), or
+                    A/B custom curves.
+                  </p>
+                </div>
+                <div class="feature-item">
+                  <h3>Per-Channel Dynamics &amp; Quick Recipes</h3>
+                  <p>
+                    Noise gate, soft-knee compressor, de-esser, and limiter with live gain-reduction
+                    readouts—plus one-click starting points like Streaming voice, Noisy room, and Hear
+                    footsteps.
+                  </p>
+                </div>
+                <div class="feature-item">
+                  <h3>AI Noise Suppression (RNNoise &amp; DeepFilterNet3)</h3>
+                  <p>
+                    Available for both Mic and Chat buses. Pick RNNoise for ultra-low latency or
+                    DeepFilterNet3 for maximum studio clarity.
+                  </p>
+                </div>
+                <div class="feature-item">
+                  <h3>Auto-Ducking &amp; Scenes</h3>
+                  <p>
+                    Automatically lower chosen buses while another is active, and save full mixes as
+                    Scenes that can auto-apply when a chosen app gains focus.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div class="media-frame">
+              <img
+                src="media/equalizer.webp"
+                alt="Stellars 10-band parametric EQ with FPS footsteps preset and Fine-tune dynamics panel"
+              />
+              <div class="media-caption">
+                <span>10-band parametric curve alongside Noise Gate &amp; Compressor controls.</span>
+                <span class="mono">48 kHz · Float32</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="stream" class="feature-split">
+            <div class="media-frame">
+              <img
+                src="media/stream.webp"
+                alt="Stellars Stream mix bar showing independent level, sources and Mix settings"
+              />
+              <div class="media-caption">
+                <span>Dedicated Stream output card—independent from monitor faders and ChatMix.</span>
+                <span class="mono">Up to 32 apps</span>
+              </div>
+            </div>
+
+            <div>
+              <h2 class="section-title">A dedicated mix for your stream</h2>
+              <p class="section-lead">
+                Send a separate 48 kHz stereo mix to its own virtual cable so OBS and your audience
+                hear exactly what you choose—without touching what you hear in your headphones.
+              </p>
+
+              <div class="feature-list">
+                <div class="feature-item">
+                  <h3>Independent of Monitor Faders &amp; ChatMix</h3>
+                  <p>
+                    Mute Spotify in your headphones or tilt ChatMix toward Discord mid-game while
+                    keeping your stream's audio balance steady.
+                  </p>
+                </div>
+                <div class="feature-item">
+                  <h3>Bus Includes + Executable Overrides</h3>
+                  <p>
+                    Include whole buses (Game, Chat, Media, Aux, processed Mic) and override
+                    individual executables with persistent Include or Exclude rules.
+                  </p>
+                </div>
+                <div class="feature-item">
+                  <h3>Solo Headphones Preview</h3>
+                  <p>
+                    Monitor the exact Stream mix in your headphones with one click to verify levels,
+                    without altering your saved mix.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="requirements" class="section">
+        <div class="container">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Built for everyday desktop use</h2>
+              <p class="section-lead">
+                Lightweight in the background, resilient when devices unplug, and ready for both
+                casual setups and power users.
+              </p>
+            </div>
+          </div>
+
+          <div class="everyday-grid">
+            <table class="spec-table">
+              <tbody>
+                <tr>
+                  <th>Operating System</th>
+                  <td>Windows 11, or Windows 10 build 20348 or later (64-bit)</td>
+                </tr>
+                <tr>
+                  <th>Runtime &amp; Footprint</th>
+                  <td>
+                    Microsoft Edge WebView2 (installed automatically if missing). Closing the window
+                    releases the UI and leaves only the audio engine running (&lt; 15 MB RAM in tray).
+                  </td>
+                </tr>
+                <tr>
+                  <th>Virtual Audio Cable</th>
+                  <td>
+                    VB-CABLE is set up by the installer for Stream and Mic routes, and can be
+                    repaired or re-routed anytime from <strong>Hardware I/O</strong>.
+                  </td>
+                </tr>
+                <tr>
+                  <th>Interface Modes &amp; Themes</th>
+                  <td>
+                    Start in <strong>Simple</strong> mode or reveal every control in
+                    <strong>Advanced</strong> mode. Switch Light and Dark themes anytime with
+                    <span class="mono">Alt+T</span>.
+                  </td>
+                </tr>
+                <tr>
+                  <th>Reliability &amp; Backups</th>
+                  <td>
+                    Automatic device reconnection, resource-saver meter throttling when hidden,
+                    one-click settings/preset backups, and built-in diagnostics for audio load and
+                    underruns.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+
+            <aside class="callout-panel">
+              <h3>Keep one spare audio output free for the silent sink</h3>
+              <p>
+                Stellars routes apps through a silent sink so you never hear them unprocessed. When
+                both virtual cables are already taken (silent sink and virtual mic), there is no
+                cable left for the Stream mix.
+              </p>
+              <p>
+                In that case, pick a spare physical output you don't listen to—such as a monitor's
+                HDMI audio—in the <strong>Stream</strong> cable card. Stellars mutes it, uses it as
+                the silent sink, and hands the freed cable to the Stream mix. It unmutes the output
+                again when it stops being the silent sink.
+              </p>
+              <p class="mono" style="font-size: 12.5px; color: var(--teal);">
+                Note: The spare output cannot be your monitor output or the Windows default device.
+              </p>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section id="quickstart" class="section">
+        <div class="container">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Routing apps in under a minute</h2>
+              <p class="section-lead">
+                Download the latest Windows installer from GitHub Releases and follow the first-run
+                wizard.
+              </p>
+            </div>
+            <a
+              class="btn btn-primary"
+              href="https://github.com/giran03/Stellars/releases/latest"
+              data-download-exe
+              data-download-label="Download Installer"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Get Latest Release
+            </a>
+          </div>
+
+          <div class="steps-list">
+            <article class="step-card">
+              <span class="step-num">1</span>
+              <h3>Play something</h3>
+              <p>Start a game, voice call, or music player so it appears in the App routing pool.</p>
+            </article>
+            <article class="step-card">
+              <span class="step-num">2</span>
+              <h3>Route it</h3>
+              <p>Drag the app onto Game, Chat, Media, or Aux—or pick a bus from its menu.</p>
+            </article>
+            <article class="step-card">
+              <span class="step-num">3</span>
+              <h3>Balance it</h3>
+              <p>Adjust faders, press S to solo, or open Edit channel to shape EQ and dynamics.</p>
+            </article>
+            <article class="step-card">
+              <span class="step-num">4</span>
+              <h3>Add Stream mix</h3>
+              <p>Optional: enable Stream, pick your virtual cable, and select it in OBS.</p>
+            </article>
+            <article class="step-card">
+              <span class="step-num">5</span>
+              <h3>Close to tray</h3>
+              <p>Closing the window keeps audio routing active; right-click the tray icon for quick actions.</p>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <div class="footer-brand">
+          <img src="media/stellars-symbol-color.svg" alt="" width="28" height="28" />
+          <span><strong>Stellars</strong> · Designed and built by <strong>CafeTako Team</strong></span>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/giran03/Stellars" target="_blank" rel="noopener noreferrer">Repository</a>
+          <a href="https://github.com/giran03/Stellars/releases/latest" target="_blank" rel="noopener noreferrer">Releases</a>
+          <a href="https://github.com/giran03/Stellars/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Changelog</a>
+          <a href="https://github.com/giran03/Stellars/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">License</a>
+        </div>
+      </div>
+    </footer>
+
+    <script src="showcase.js"></script>
+  </body>
+</html>
