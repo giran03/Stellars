@@ -11,13 +11,16 @@ All notable changes to Stellars are recorded here, newest version first.
 
 ---
 
-## [1.0.3] - in development
+## [1.0.3] - 2026-11-21
 
 ### Added
 
 ### Changed
 
 ### Fixed
+
+- Install and restart now reopens Stellars after the update installs; before, it closed and stayed closed.
+- The update notice is cleaner: release notes show as a short list without checksums or stray symbols, and the "ready to install" box lays out its text and button properly.
 
 ### Removed
 
