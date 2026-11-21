@@ -1264,6 +1264,12 @@
   }
 
   function handleGlobalKeydown(e: KeyboardEvent) {
+    // Ctrl+Q closes the window; only fires while the app window has focus.
+    if (e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && e.key.toLowerCase() === "q") {
+      e.preventDefault();
+      void handleClose();
+      return;
+    }
     const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.getAttribute("role") === "combobox") return;
 

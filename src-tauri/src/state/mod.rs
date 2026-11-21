@@ -2,6 +2,7 @@ pub mod app_settings;
 pub mod backup;
 pub mod config;
 pub mod debounced_save;
+pub mod game_exes;
 pub mod health;
 pub mod logging;
 pub mod maintenance;

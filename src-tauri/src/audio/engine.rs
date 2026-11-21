@@ -854,12 +854,20 @@ impl AudioRouterEngine {
             if let Some(bus) = already_bus {
                 proc_info.assigned_bus = Some(bus.as_str().to_string());
                 proc_info.is_routed = true;
-            } else if self
-                .assign_process_to_bus(proc_info.pid, Some(proc_info.exe_name.clone()), BusId::Aux)
-                .is_ok()
-            {
-                proc_info.assigned_bus = Some(BusId::Aux.as_str().to_string());
-                proc_info.is_routed = true;
+            } else {
+                // A known game goes to Game; anything else to Aux.
+                let target = if crate::state::game_exes::is_game_exe(&proc_info.exe_name) {
+                    BusId::Game
+                } else {
+                    BusId::Aux
+                };
+                if self
+                    .assign_process_to_bus(proc_info.pid, Some(proc_info.exe_name.clone()), target)
+                    .is_ok()
+                {
+                    proc_info.assigned_bus = Some(target.as_str().to_string());
+                    proc_info.is_routed = true;
+                }
             }
         }
 

@@ -15,6 +15,9 @@ All notable changes to Stellars are recorded here, newest version first.
 
 ### Added
 
+- Known games are now routed to the Game category automatically the first time they play sound. Stellars ships with a built-in list of game program names; apps you have already placed in a category are never moved.
+- Ctrl+Q closes the Stellars window (following your close setting). It only works while Stellars is focused.
+
 ### Changed
 
 ### Fixed
