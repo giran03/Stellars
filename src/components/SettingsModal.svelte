@@ -13,6 +13,7 @@
 </script>
 
 <script lang="ts">
+  const NEWLINE_RE = /\r?\n/;
   import { onMount, tick, type Snippet } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import StudioIcon from "./StudioIcon.svelte";
@@ -480,8 +481,7 @@
                   <strong>Version {updateStatus.release.version} is available.</strong>
                   {#if updateStatus.release.notes}
                     <div class="update-notes">
-                      {#each updateStatus.release.notes.split("
-") as line}
+                      {#each updateStatus.release.notes.split(NEWLINE_RE) as line}
                         {#if line.startsWith("- ")}<p class="update-note-item">{line.slice(2)}</p>{:else}<p class="update-note-head">{line}</p>{/if}
                       {/each}
                     </div>
