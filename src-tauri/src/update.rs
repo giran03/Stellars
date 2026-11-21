@@ -1,8 +1,9 @@
 //! Updates from GitHub Releases, modelled on SuiNotch. The latest release must carry the
 //! installer `Stellars_<version>_x64-setup.exe` and a `SHA256SUMS.txt` that lists it (both are
 //! produced when a release is published). The installer is checked against the sum, checked
-//! again right before it runs, then started silently with `/S /UPDATE`; it closes this copy
-//! and starts the new one.
+//! again right before it runs, then started silently with `/S /UPDATE`. The installer closes
+//! this copy, so the helper that waits for it (PowerShell, not elevated) starts the new copy
+//! itself once the installer reports success.
 //!
 //! The installer installs for all users, so Windows asks for permission (UAC) when it starts.
 
@@ -33,7 +34,7 @@ const CHECK_EVERY: Duration = Duration::from_secs(6 * 3600);
 /// Automatic installs wait until the PC has been left alone this long.
 const IDLE_BEFORE_INSTALL_S: u32 = 10 * 60;
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-const MAX_NOTES_CHARS: usize = 400;
+const MAX_NOTES_CHARS: usize = 700;
 const EVENT: &str = "update-status";
 
 static BUSY: AtomicBool = AtomicBool::new(false);
@@ -283,10 +284,18 @@ fn verify_download(download: &Download) -> std::result::Result<(), String> {
 }
 
 /// Runs the installer with administrator rights and waits for it. Returns its exit code.
-fn run_installer_elevated(path: &std::path::Path) -> std::result::Result<i32, String> {
-    let quoted = path.display().to_string().replace('\'', "''");
+fn run_installer_elevated(path: &std::path::Path, app_exe: Option<&std::path::Path>) -> std::result::Result<i32, String> {
+    let quote = |p: &std::path::Path| p.display().to_string().replace('\'', "''");
+    let quoted = quote(path);
+    // The installer kills this process, so this helper reopens the app once the install succeeded.
+    let relaunch = app_exe
+        .map(|exe| {
+            let dir = exe.parent().map(quote).unwrap_or_default();
+            format!("if ($p.ExitCode -eq 0) {{ Start-Sleep -Seconds 1; Start-Process -FilePath '{}' -WorkingDirectory '{dir}' }}; ", quote(exe))
+        })
+        .unwrap_or_default();
     let script = format!(
-        "$p = Start-Process -FilePath '{quoted}' -ArgumentList '/S','/UPDATE' -Verb RunAs -Wait -PassThru; exit $p.ExitCode"
+        "$p = Start-Process -FilePath '{quoted}' -ArgumentList '/S','/UPDATE' -Verb RunAs -Wait -PassThru; {relaunch}exit $p.ExitCode"
     );
     let output = std::process::Command::new("powershell.exe")
         .creation_flags(CREATE_NO_WINDOW)
@@ -305,6 +314,7 @@ fn run_installer_elevated(path: &std::path::Path) -> std::result::Result<i32, St
 
 fn launch(download: &Download) {
     let version = download.release.version.clone();
+    let app_exe = std::env::current_exe().ok().filter(|p| p.is_file());
     let data_dir = APP.get().and_then(|a| a.try_state::<AppState>()).map(|s| {
         s.flush_config();
         s.data_dir()
@@ -316,7 +326,7 @@ fn launch(download: &Download) {
         if let Some(dir) = &data_dir {
             session_guard::end(dir);
         }
-        match run_installer_elevated(&download.path)? {
+        match run_installer_elevated(&download.path, app_exe.as_deref())? {
             0 => Ok(()),
             _ => Err("Installation did not complete. Please try again.".to_string()),
         }
@@ -398,17 +408,62 @@ fn sha256_hex(buf: &IBuffer) -> Result<String> {
 
 // ------------------------------------------------------------------ parsing
 
-/// Plain, short version of the release notes for the update notice.
-fn summarize_notes(body: &str) -> Option<String> {
-    let text = body.replace(['#', '*', '_', '`', '>', '[', ']'], "").split_whitespace().collect::<Vec<_>>().join(" ");
-    if text.is_empty() {
-        return None;
+/// Strips inline markdown (emphasis, code ticks, link targets) from one line.
+fn plain_line(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(i) = rest.find("](") {
+        out.push_str(&rest[..i]);
+        match rest[i..].find(')') {
+            Some(j) => rest = &rest[i + j + 1..],
+            None => {
+                rest = &rest[i + 2..];
+            }
+        }
     }
-    Some(if text.chars().count() > MAX_NOTES_CHARS {
-        format!("{}…", text.chars().take(MAX_NOTES_CHARS - 1).collect::<String>())
+    out.push_str(rest);
+    out.replace(['*', '_', '`', '[', ']'], "").split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Short, readable version of the release notes for the update notice: one line per heading
+/// (plain text) or bullet (`- text`), without checksums or markdown.
+fn summarize_notes(body: &str) -> Option<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut total = 0usize;
+    for raw in body.lines() {
+        let t = raw.trim();
+        if t.is_empty() || t.starts_with('>') || t.to_ascii_lowercase().contains("sha-256") {
+            continue;
+        }
+        let line = if let Some(h) = t.trim_start_matches('#').strip_prefix(' ').filter(|_| t.starts_with('#')) {
+            plain_line(h)
+        } else if let Some(item) = t.strip_prefix("- ").or_else(|| t.strip_prefix("* ")) {
+            format!("- {}", plain_line(item))
+        } else {
+            plain_line(t)
+        };
+        if line.is_empty() || line == "-" {
+            continue;
+        }
+        let len = line.chars().count();
+        if total + len > MAX_NOTES_CHARS {
+            let room = MAX_NOTES_CHARS.saturating_sub(total);
+            if room > 40 {
+                lines.push(format!("{}…", line.chars().take(room - 1).collect::<String>().trim_end()));
+            } else if let Some(last) = lines.last_mut() {
+                last.push('…');
+            }
+            break;
+        }
+        total += len;
+        lines.push(line);
+    }
+    if lines.is_empty() {
+        None
     } else {
-        text
-    })
+        Some(lines.join("
+"))
+    }
 }
 
 /// Reads a GitHub "latest release" response; None when it lacks the installer or its sums.
@@ -565,7 +620,24 @@ mod tests {
         assert_eq!(r.setup_url, "https://x/s");
         assert_eq!(r.sums_url, "https://x/h");
         assert_eq!(r.page_url, "https://github.com/giran03/Stellars/releases/tag/v1.2.0");
-        assert_eq!(r.notes.as_deref(), Some("Added - New thing works"));
+        assert_eq!(r.notes.as_deref(), Some("Added
+- New thing works"));
+    }
+
+    #[test]
+    fn notes_drop_checksums_and_markdown() {
+        let body = "> Re-issued
+
+## Added
+
+- **Games** go to [Game](https://x) now
+- Ctrl+Q closes
+
+SHA-256 of `a.exe`: `abc`
+";
+        assert_eq!(summarize_notes(body).as_deref(), Some("Added
+- Games go to Game now
+- Ctrl+Q closes"));
     }
 
     #[test]

@@ -478,7 +478,14 @@
               {:else if updateStatus.kind === "available"}
                 <div class="update-status ok" role="status">
                   <strong>Version {updateStatus.release.version} is available.</strong>
-                  {#if updateStatus.release.notes}<span>{updateStatus.release.notes}</span>{/if}
+                  {#if updateStatus.release.notes}
+                    <div class="update-notes">
+                      {#each updateStatus.release.notes.split("
+") as line}
+                        {#if line.startsWith("- ")}<p class="update-note-item">{line.slice(2)}</p>{:else}<p class="update-note-head">{line}</p>{/if}
+                      {/each}
+                    </div>
+                  {/if}
                   <div class="update-actions">
                     <button type="button" class="cable-install-button" onclick={downloadUpdate}>
                       <StudioIcon name="download" size={13} /> Download update
@@ -864,8 +871,14 @@
     align-items: flex-start;
     gap: 8px;
   }
-  .update-status { flex-wrap: wrap; }
-  .update-status .update-actions { flex-basis: 100%; justify-content: flex-start; margin-top: 4px; }
+  .update-status > * { max-width: 100%; }
+  .update-notes { display: flex; flex-direction: column; gap: 4px; width: 100%; max-height: 180px; overflow-y: auto; color: var(--text-secondary); }
+  .update-notes p { margin: 0; }
+  .update-note-head { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-muted); margin-top: 4px !important; }
+  .update-note-head:first-child { margin-top: 0 !important; }
+  .update-note-item { position: relative; padding-left: 14px; }
+  .update-note-item::before { content: ""; position: absolute; left: 3px; top: 0.7em; width: 4px; height: 4px; border-radius: 50%; background: var(--teal); }
+  .update-status .update-actions { width: 100%; justify-content: flex-start; margin-top: 4px; }
   .update-status.ok { color: var(--teal); border-color: color-mix(in srgb, var(--teal) 35%, transparent); }
   .update-status.bad { color: #ffc4d7; border-color: #f0a7c633; }
   :global(:root[data-theme="light"]) .update-status.bad { color: #9c2f58; }
