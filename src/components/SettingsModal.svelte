@@ -32,11 +32,13 @@
     type AppSettings,
   } from "../appSettings.svelte";
 
-  type Theme = "dark" | "light";
+  type Theme = "dark" | "light" | "system";
 
   interface Props {
     open: boolean;
     tab: SettingsTabId;
+    /** Shows the change log inside the Updates tab. */
+    showChangelog?: boolean;
     native: boolean;
     theme: Theme;
     audio: Snippet;
@@ -56,6 +58,7 @@
   let {
     open,
     tab = $bindable(),
+    showChangelog = $bindable(false),
     native,
     theme,
     audio,
@@ -102,7 +105,6 @@
   let dialogEl = $state<HTMLDivElement>();
   let appVersion = $state(FALLBACK_VERSION);
   const updateStatus = $derived(updateState.status);
-  let showChangelog = $state(false);
   let dataDir = $state<string | null>(null);
   let saveError = $state<string | null>(null);
   let armed = $state<"reset" | "quit" | null>(null);
@@ -384,7 +386,7 @@
             </div>
             <div class="settings-group">
               <h4>Devices</h4>
-              {@render toggle("autoReconnectDevices", "Reconnect devices automatically", "When a headset, microphone or cable that Stellars uses is unplugged and returns, bind to it again.", true)}
+              {@render toggle("autoReconnectDevices", "Reconnect devices automatically", "When the headset or microphone Stellars uses is unplugged, move to the Windows default right away, and bind to it again when it returns.", true)}
             </div>
             <div class="settings-group">
               <h4>Performance</h4>
@@ -420,8 +422,8 @@
               <h4>Look &amp; feel</h4>
               {@render segmented(
                 "Theme",
-                "Switch the whole console between dark and light. Alt+T toggles it anywhere.",
-                [{ value: "dark", label: "Dark" }, { value: "light", label: "Light" }],
+                "Dark, light, or follow the Windows app theme. Alt+T switches between dark and light anywhere.",
+                [{ value: "dark", label: "Dark" }, { value: "light", label: "Light" }, { value: "system", label: "System" }],
                 theme,
                 (v) => onSetTheme(v as Theme)
               )}

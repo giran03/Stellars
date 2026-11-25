@@ -23,11 +23,15 @@ pub(crate) const AUTO_BACKUPS_KEPT: usize = 5;
 pub(crate) const PRE_RESTORE_BACKUPS_KEPT: usize = 5;
 
 #[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DevicesChanged {
     added: Vec<String>,
     removed: Vec<String>,
     /// True when a configured device came back and the engine was restarted to re-bind it.
     reconnected: bool,
+    /// True when the monitor output or microphone in use was unplugged and the engine moved to the
+    /// Windows default device (it moves back by itself when the device returns).
+    fell_back: bool,
 }
 
 /// Polls the Windows endpoint list and tells the UI when devices appear or disappear. When a
@@ -57,19 +61,26 @@ fn spawn_device_watcher(app: AppHandle) {
                 }
 
                 let mut reconnected = false;
+                let mut fell_back = false;
                 if let Some(state) = app.try_state::<AppState>() {
-                    let configured: Vec<String> = match state.current_engine().config.lock() {
-                        Ok(cfg) => [
+                    let (monitor_ids, configured): (Vec<String>, Vec<String>) = match state.current_engine().config.lock() {
+                        Ok(cfg) => (
+                            [cfg.master_output_device_id.clone(), cfg.physical_mic_device_id.clone()]
+                                .into_iter()
+                                .flatten()
+                                .collect(),
+                            [
                             cfg.master_output_device_id.clone(),
                             cfg.dummy_sink_device_id.clone(),
                             cfg.physical_mic_device_id.clone(),
                             cfg.virtual_mic_output_device_id.clone(),
                             cfg.stream.output_device_id.clone(),
                         ]
-                        .into_iter()
-                        .flatten()
-                        .collect(),
-                        Err(_) => Vec::new(),
+                            .into_iter()
+                            .flatten()
+                            .collect(),
+                        ),
+                        Err(_) => (Vec::new(), Vec::new()),
                     };
                     let now_missing: HashSet<String> = configured
                         .into_iter()
@@ -77,13 +88,21 @@ fn spawn_device_watcher(app: AppHandle) {
                         .collect();
                     let came_back = previous.is_some()
                         && missing_configured.iter().any(|id| !now_missing.contains(id) && current.contains_key(id));
-                    if came_back && state.app_settings().auto_reconnect_devices {
+                    // The monitor output or microphone in use just vanished: restart so the engine
+                    // binds to the Windows default instead of a dead device.
+                    let lost_in_use = previous.is_some()
+                        && monitor_ids.iter().any(|id| now_missing.contains(id) && !missing_configured.contains(id));
+                    if (came_back || lost_in_use) && state.app_settings().auto_reconnect_devices {
                         match state.restart_engine() {
+                            Ok(()) if lost_in_use => {
+                                fell_back = true;
+                                logging::info("Audio device unplugged; engine moved to the Windows default");
+                            }
                             Ok(()) => {
                                 reconnected = true;
                                 logging::info("Configured audio device reconnected; engine restarted");
                             }
-                            Err(err) => logging::error(&format!("Engine restart after reconnect failed: {err}")),
+                            Err(err) => logging::error(&format!("Engine restart after device change failed: {err}")),
                         }
                     }
                     missing_configured = now_missing;
@@ -91,7 +110,7 @@ fn spawn_device_watcher(app: AppHandle) {
 
                 if !added.is_empty() || !removed.is_empty() {
                     logging::info(&format!("Audio devices changed. added={added:?} removed={removed:?}"));
-                    let _ = app.emit("devices-changed", DevicesChanged { added, removed, reconnected });
+                    let _ = app.emit("devices-changed", DevicesChanged { added, removed, reconnected, fell_back });
                 }
                 previous = Some(current);
             }
@@ -313,6 +332,15 @@ fn main() {
         return;
     }
     let app = tauri::Builder::default()
+        // Must be the first plugin. A second launch exits right away and asks this instance to
+        // show its window instead.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let app = app.clone();
+            // Window creation must not run on the callback's thread.
+            let _ = std::thread::Builder::new()
+                .name("single-instance".into())
+                .spawn(move || show_or_recreate_main_window(&app));
+        }))
         .setup(|app| {
             let config_path = RouterConfig::default_config_path();
             if let Some(dir) = config_path.parent() {
@@ -339,12 +367,6 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // The tray popup is a separate, short-lived window: it must not trigger the main
-            // window's close, minimize or meter-stream handling.
-            if window.label() == tray::LABEL {
-                tray::handle_window_event(window, event);
-                return;
-            }
             handle_close_and_minimize(window, event);
             // Section 0 & Phase 4.3:
             // When the user closes the window, we stop the 60Hz meter channel and let Tauri
@@ -364,6 +386,8 @@ fn main() {
             commands::refresh_audio_processes,
             commands::set_chat_mix,
             commands::set_master_volume,
+            commands::get_monitor_hardware_volume,
+            commands::set_monitor_hardware_volume,
             commands::set_stream_config,
             commands::set_stream_channel,
             commands::set_bus_volume_mute,
@@ -376,9 +400,8 @@ fn main() {
             commands::unroute_process,
             commands::reset_all_endpoints,
             commands::set_audio_devices,
+            commands::set_windows_default_device,
             commands::get_virtual_cable_status,
-            commands::get_nvidia_recording_status,
-            commands::set_nvidia_recording_mic,
             commands::auto_route_virtual_cables,
             commands::install_or_repair_virtual_cables,
             commands::subscribe_peak_meters,
@@ -425,9 +448,7 @@ fn main() {
             commands::save_output_profile,
             commands::delete_output_profile,
             commands::apply_output_profile,
-            tray::tray_menu_state,
-            tray::tray_menu_action,
-            tray::tray_menu_hide,
+            commands::set_app_theme,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Stellars Sonar Tauri application");

@@ -1,15 +1,11 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { onMount } from "svelte";
   import { invoke } from "@tauri-apps/api/core";
   import StudioIcon from "./StudioIcon.svelte";
   import StudioSelect from "./StudioSelect.svelte";
   import type { AudioEndpointInfo, RouterConfig, VirtualCableStatusPayload } from "../types";
 
   interface Props {
-    /** True when the desktop engine is available (enables NVIDIA lookups). */
-    native?: boolean;
-    /** True while the tab is visible so NVIDIA status is refreshed on open. */
-    active?: boolean;
     config: RouterConfig;
     endpoints: AudioEndpointInfo[];
     cableStatus?: VirtualCableStatusPayload;
@@ -29,8 +25,6 @@
   }
 
   let {
-    native = false,
-    active = true,
     config,
     endpoints,
     cableStatus,
@@ -46,41 +40,41 @@
   const renderEndpoints = () => endpoints.filter((e) => e.flow === "Render");
   const captureEndpoints = () => endpoints.filter((e) => e.flow === "Capture");
 
-  // NVIDIA overlay / ShadowPlay recording microphone (only shown when NVIDIA recording is enabled)
-  interface NvidiaRecordingStatus {
-    available: boolean;
-    micDeviceId: string | null;
-    micDeviceName: string | null;
-  }
-  let nvidia: NvidiaRecordingStatus | null = $state(null);
-  let nvidiaSaving = $state(false);
+  // The Windows default devices: what apps use when Stellars does not route them.
+  const isCable = (name: string) => /vb-audio|cable (input|output)/i.test(name);
+  const defaultOutput = $derived(endpoints.find((e) => e.flow === "Render" && e.isDefault));
+  const defaultInput = $derived(endpoints.find((e) => e.flow === "Capture" && e.isDefault));
+  // Cables and the silent sink are not offered (picking one would silence apps), but the current
+  // default is always listed so the field shows the truth.
+  const outputChoices = $derived(
+    renderEndpoints().filter((e) => e.isDefault || (!isCable(e.name) && e.id !== config.dummySinkDeviceId))
+  );
+  const inputChoices = $derived(captureEndpoints().filter((e) => e.isDefault || !isCable(e.name)));
+  let settingDefault = $state(false);
+  let root = $state<HTMLDivElement>();
 
-  async function loadNvidiaStatus() {
-    if (!native) return;
+  async function setWindowsDefault(deviceId: string) {
+    if (!deviceId || settingDefault) return;
+    settingDefault = true;
     try {
-      nvidia = await invoke<NvidiaRecordingStatus>("get_nvidia_recording_status");
-    } catch {
-      nvidia = null;
-    }
-  }
-
-  async function changeNvidiaMic(deviceId: string) {
-    nvidiaSaving = true;
-    try {
-      nvidia = await invoke<NvidiaRecordingStatus>("set_nvidia_recording_mic", {
-        deviceId: deviceId || null,
-      });
-      onNotify("NVIDIA recording microphone updated. Reopen the NVIDIA overlay if it still shows the old device.");
+      await invoke("set_windows_default_device", { deviceId });
+      onNotify("Windows default device updated");
     } catch (err) {
-      onNotify(`Could not update NVIDIA microphone: ${String(err)}`);
-      await loadNvidiaStatus();
+      onNotify(`Could not change the Windows default: ${String(err)}`);
     } finally {
-      nvidiaSaving = false;
+      await onRefreshDevices?.();
+      settingDefault = false;
     }
   }
 
-  $effect(() => {
-    if (active) untrack(() => void loadNvidiaStatus());
+  // The default can also change in Windows itself, so re-read it while this panel is on screen.
+  onMount(() => {
+    const refresh = () => {
+      if (!document.hidden && root?.checkVisibility({ visibilityProperty: true })) onRefreshDevices?.();
+    };
+    refresh();
+    const timer = setInterval(refresh, 2500);
+    return () => clearInterval(timer);
   });
 
   // "Free a cable for the Stream Mix": a spare output (e.g. a monitor) becomes the silent sink,
@@ -115,7 +109,7 @@
   }
 </script>
 
-<div class="hardware-settings" aria-label="Hardware and virtual cable configuration">
+<div class="hardware-settings" bind:this={root} aria-label="Hardware and virtual cable configuration">
   <div class="hardware-toolbar">
     <div class="hardware-badges">
       <span class="cable-badge" class:ready={cableStatus?.vbCableInstalled}>
@@ -209,27 +203,46 @@
     </label>
   </div>
 
-  {#if nvidia?.available}
-    <div class="hardware-physical-grid nvidia-section" role="group" aria-label="NVIDIA recording audio">
-      <label class="io-field">
-        <span class="io-field-head">
-          <strong>NVIDIA recording microphone</strong>
-          <small>ShadowPlay / Instant Replay / overlay recording</small>
-        </span>
-        <StudioSelect
-          aria-label="NVIDIA recording microphone"
-          disabled={nvidiaSaving}
-          value={captureEndpoints().find((ep) => ep.id === nvidia?.micDeviceId)?.id ?? ""}
-          onchange={(e) => changeNvidiaMic(e.currentTarget.value)}
-        >
-          <option value="">System default microphone</option>
-          {#each captureEndpoints() as ep}
-            <option value={ep.id}>{ep.name}</option>
-          {/each}
-        </StudioSelect>
-      </label>
-    </div>
-  {/if}
+  <div class="hardware-physical-grid" role="group" aria-label="Windows default devices">
+    <label class="io-field">
+      <span class="io-field-head">
+        <strong>Windows default output</strong>
+        <small>Used by apps Stellars doesn't route</small>
+      </span>
+      <StudioSelect
+        aria-label="Windows default output"
+        disabled={settingDefault}
+        value={defaultOutput?.id ?? ""}
+        onchange={(e) => setWindowsDefault(e.currentTarget.value)}
+      >
+        {#if !defaultOutput}<option value="">No default output</option>{/if}
+        {#each outputChoices as ep}
+          <option value={ep.id}>{ep.name}</option>
+        {/each}
+      </StudioSelect>
+      {#if defaultOutput && isCable(defaultOutput.name)}
+        <p class="route-hint conflict">A virtual cable is the default, so unrouted apps may be silent.</p>
+      {/if}
+    </label>
+
+    <label class="io-field">
+      <span class="io-field-head">
+        <strong>Windows default input</strong>
+        <small>Used by apps that don't pick a mic</small>
+      </span>
+      <StudioSelect
+        aria-label="Windows default input"
+        disabled={settingDefault}
+        value={defaultInput?.id ?? ""}
+        onchange={(e) => setWindowsDefault(e.currentTarget.value)}
+      >
+        {#if !defaultInput}<option value="">No default input</option>{/if}
+        {#each inputChoices as ep}
+          <option value={ep.id}>{ep.name}</option>
+        {/each}
+      </StudioSelect>
+    </label>
+  </div>
 
   <div class="virtual-routes-grid" role="group" aria-label="Virtual cable routing slots">
     <div class="route-card">

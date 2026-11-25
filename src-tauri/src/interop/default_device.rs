@@ -133,7 +133,8 @@ pub fn restore_original_defaults(before: &DefaultDevices) -> Vec<String> {
         .collect()
 }
 
-fn set_default_endpoint(device_id: &str) -> Result<(), String> {
+/// Makes `device_id` the Windows default for all roles (general, media and calls).
+pub fn set_default_endpoint(device_id: &str) -> Result<(), String> {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let policy: IPolicyConfig = CoCreateInstance(&CLSID_POLICY_CONFIG_CLIENT, None, CLSCTX_ALL)

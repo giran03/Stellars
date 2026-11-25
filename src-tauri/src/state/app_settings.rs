@@ -33,6 +33,18 @@ pub enum InterfaceMode {
     Advanced,
 }
 
+/// Colour theme, kept here (as well as in the window) so the native tray menu can match the app
+/// while the window is closed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemeMode {
+    #[default]
+    Dark,
+    Light,
+    /// Follow the Windows app theme.
+    System,
+}
+
 /// Settings files written before the modes existed belong to people already using the full
 /// interface, so a missing field means "advanced" (new installs use `Default`, i.e. simple).
 fn existing_install_mode() -> InterfaceMode {
@@ -70,6 +82,11 @@ pub struct AppSettings {
     /// False until the user picks a mode (wizard or the side prompt); existing installs count as chosen.
     #[serde(default = "existing_install_chosen")]
     pub interface_mode_chosen: bool,
+    /// Written by the window's theme switch (`set_app_theme`), never by the settings form.
+    pub theme: ThemeMode,
+    /// Set once the old software monitor gain has been reset to 1.0 (the slider is now the device
+    /// volume). Internal: written by startup, never by the settings form.
+    pub master_gain_reset: bool,
 }
 
 impl Default for AppSettings {
@@ -93,6 +110,8 @@ impl Default for AppSettings {
             last_update_check: None,
             interface_mode: InterfaceMode::Simple,
             interface_mode_chosen: false,
+            theme: ThemeMode::Dark,
+            master_gain_reset: false,
         }
     }
 }

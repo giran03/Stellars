@@ -3,8 +3,10 @@
   import EditableValue from './EditableValue.svelte';
   import AppIcon from './AppIcon.svelte';
   import { onMount, untrack, type Snippet } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import { masonry } from "../masonry";
   import StudioIcon from "./StudioIcon.svelte";
+  import DevicePickerModal from "./DevicePickerModal.svelte";
   import type {
     ActiveAudioProcess,
     AllBusMetersPayload,
@@ -62,6 +64,9 @@
     onNotify: (msg: string, action?: { label: string; run: () => void }) => void;
     onChangeExtras?: (bus: BusId, limiter: LimiterConfig, deEsser: DeEsserConfig, noise: NoiseSuppressionConfig) => void;
     onChangeProcessVolume?: (exeName: string, volume: number) => void;
+    /** Saves new hardware devices (monitor output, microphone) from the quick picker. */
+    onChangeDevices?: (masterId: string | null, dummyId: string | null, micId: string | null, virtMicId: string | null) => void | Promise<void>;
+    onRefreshDevices?: () => void;
   }
 
   let {
@@ -95,7 +100,16 @@
     onNotify,
     onChangeExtras,
     onChangeProcessVolume,
+    onChangeDevices,
+    onRefreshDevices,
   }: Props = $props();
+
+  // Quick device picker (monitor output / microphone), opened from the buttons on those controls.
+  let devicePicker = $state<'output' | 'input' | null>(null);
+  function pickDevice(id: string | null) {
+    if (devicePicker === 'output') void onChangeDevices?.(id, config.dummySinkDeviceId, config.physicalMicDeviceId, config.virtualMicOutputDeviceId);
+    else if (devicePicker === 'input') void onChangeDevices?.(config.masterOutputDeviceId, config.dummySinkDeviceId, id, config.virtualMicOutputDeviceId);
+  }
 
   const BUS_LIST: BusId[] = ["Game", "Chat", "Media", "Aux", "Mic"];
   const PLAYBACK_BUSES: PlaybackBusId[] = ["Game", "Chat", "Media", "Aux"];
@@ -683,11 +697,48 @@
     onChangeChatMix(config.chatMixBalance + delta);
   }
 
+  // The Monitor output slider is the Windows volume of the output device itself (0-100%, the same
+  // level as the Windows volume mixer), so it stays in step with the keyboard volume keys.
+  let volMode = $state<'hardware' | 'software'>(localStorage.getItem('stellars-monitor-volume-mode') === 'software' ? 'software' : 'hardware');
+  const hardwareMode = $derived(volMode === 'hardware');
+  function setVolMode(mode: 'hardware' | 'software') {
+    volMode = mode;
+    localStorage.setItem('stellars-monitor-volume-mode', mode);
+  }
+  let hwVolume = $state(1);
+  let hwDragging = false;
+  let hwBusy = false;
+
+  async function readHardwareVolume() {
+    if (hwDragging || hwBusy) return;
+    try {
+      const v = await invoke<{ volume: number }>('get_monitor_hardware_volume');
+      if (!hwDragging) hwVolume = v.volume;
+    } catch {}
+  }
+
+  function setHardwareVolume(level: number) {
+    hwVolume = Math.max(0, Math.min(1, level));
+    hwBusy = true;
+    invoke('set_monitor_hardware_volume', { volume: hwVolume })
+      .catch(() => {})
+      .finally(() => { hwBusy = false; });
+  }
+
+  $effect(() => {
+    config.masterOutputDeviceId;
+    if (!hardwareMode) return;
+    void readHardwareVolume();
+    const timer = setInterval(() => { if (!document.hidden) void readHardwareVolume(); }, 500);
+    return () => clearInterval(timer);
+  });
+
   function handleMasterWheel(e: WheelEvent) {
     e.preventDefault();
     const step = e.shiftKey ? 0.01 : 0.03;
     const delta = e.deltaY < 0 ? step : -step;
-    onChangeMasterVolume(config.masterVolume + delta);
+    if (hardwareMode) setHardwareVolume(hwVolume + delta);
+    else onChangeMasterVolume(config.masterVolume + delta);
   }
 
   const anySoloActive = $derived(Object.values(soloedBuses).some(Boolean));
@@ -760,10 +811,17 @@
           <div class="channel-app-shelf" class:shelf-expanded={draggedProc !== null} class:shelf-drop-active={dragOverTarget === bus}>
             {#if bus === 'Mic'}
               <div class="channel-mic-shelf-content">
-                <div class="channel-mic-source" title={endpointLabel(config.physicalMicDeviceId, 'Default microphone')}>
+                <button
+                  type="button"
+                  class="channel-mic-source channel-mic-source-btn"
+                  aria-label={`Microphone: ${endpointLabel(config.physicalMicDeviceId, 'Default microphone')}. Change microphone`}
+                  data-tooltip="Change the microphone device"
+                  onclick={e => { e.stopPropagation(); devicePicker = 'input'; }}
+                >
                   <span class="channel-mic-dot"></span>
                   <span class="channel-mic-text">{endpointLabel(config.physicalMicDeviceId, 'Default microphone')}</span>
-                </div>
+                  <StudioIcon name="swap" size={12} />
+                </button>
                 <button
                   type="button"
                   class="channel-mic-monitor-btn"
@@ -1005,7 +1063,7 @@
     </div>
     <div class="mix-bottom">
       <section class="chatmix panel"><div class="compact-title"><StudioIcon name="mix" size={17}/><h3>ChatMix</h3><button class="text-button" aria-label="Reset ChatMix" onclick={()=>onChangeChatMix(0)}>Reset</button></div><div class="balance-labels"><span>Game</span><span class="balance-value"><EditableValue value={config.chatMixBalance*100} min={-100} max={100} step={1} unit="%" label="ChatMix balance" display={config.chatMixBalance===0?'Perfect balance':Math.abs(Math.round(config.chatMixBalance*100))+'% toward '+(config.chatMixBalance<0?'Game':'Chat')} oncommit={v=>onChangeChatMix(v/100)}/></span><span>Chat</span></div><input class="horizontal-range chat-range" type="range" min="-1" max="1" step=".01" value={config.chatMixBalance} aria-label="Game and Chat balance" oninput={e=>onChangeChatMix(Number(e.currentTarget.value))} ondblclick={()=>onChangeChatMix(0)} onwheel={handleChatMixWheel}/></section>
-      <section class="master-panel"><div class="master-heading"><span><StudioIcon name="headphones" size={18}/>Monitor output{#if streamMonitoring}<span class="stream-solo-pill">Stream Solo</span>{/if}</span><strong><EditableValue value={config.masterVolume*100} min={0} max={150} step={1} unit="%" label="Master monitor level" oncommit={v=>onChangeMasterVolume(v/100)}/></strong></div><input class="horizontal-range" type="range" min="0" max="1.5" step=".01" value={config.masterVolume} aria-label="Master monitor volume" oninput={e=>onChangeMasterVolume(Number(e.currentTarget.value))} ondblclick={()=>onChangeMasterVolume(1)} onwheel={handleMasterWheel}/><div class="master-footer"><span title={endpointLabel(config.masterOutputDeviceId,'System default')}>{endpointLabel(config.masterOutputDeviceId,'System default')}</span><span>Limiter −0.1 dBFS</span></div><div class="master-stereo" role="meter" aria-label="Master stereo peak" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(meterPercent(Math.max(meters.master.peakLeft,meters.master.peakRight)))}><i style={`width:${meterPercent(meters.master.peakLeft)}%`}></i><i style={`width:${meterPercent(meters.master.peakRight)}%`}></i></div></section>
+      <section class="master-panel"><div class="master-heading"><span><StudioIcon name="headphones" size={18}/>Monitor output{#if streamMonitoring}<span class="stream-solo-pill">Stream Solo</span>{/if}<button type="button" class="master-device-btn" aria-label="Change monitor output device" data-tooltip="Change the monitor output device" onclick={()=>devicePicker='output'}><StudioIcon name="swap" size={13}/></button><span class="master-mode" role="group" aria-label="Monitor volume control"><button type="button" class:on={hardwareMode} aria-pressed={hardwareMode} data-tooltip="Control the Windows volume of the output device (0-100%)" onclick={()=>setVolMode('hardware')}>Device</button><button type="button" class:on={!hardwareMode} aria-pressed={!hardwareMode} data-tooltip="Control the software gain inside Stellars (0-150%)" onclick={()=>setVolMode('software')}>Gain</button></span></span><strong><EditableValue value={hardwareMode?Math.round(hwVolume*100):config.masterVolume*100} min={0} max={hardwareMode?100:150} step={1} unit="%" label="Master monitor level" oncommit={v=>hardwareMode?setHardwareVolume(v/100):onChangeMasterVolume(v/100)}/></strong></div><div class="master-fader"><input class="horizontal-range" type="range" min="0" max={hardwareMode?1:1.5} step=".01" value={hardwareMode?hwVolume:config.masterVolume} aria-label="Master monitor volume" data-tooltip={hardwareMode?"Windows volume of this output device":"Software gain inside Stellars. Double-click to reset to 100%."} onpointerdown={()=>hwDragging=true} onpointerup={()=>hwDragging=false} onpointercancel={()=>hwDragging=false} oninput={e=>hardwareMode?setHardwareVolume(Number(e.currentTarget.value)):onChangeMasterVolume(Number(e.currentTarget.value))} ondblclick={()=>{if(!hardwareMode)onChangeMasterVolume(1);}} onwheel={handleMasterWheel}/><div class="master-stereo" role="meter" aria-label="Master stereo peak" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(meterPercent(Math.max(meters.master.peakLeft,meters.master.peakRight)))}><i class:clip={meters.master.peakLeft>=0.98} style={`width:${meterPercent(meters.master.peakLeft)}%`}></i><i class:clip={meters.master.peakRight>=0.98} style={`width:${meterPercent(meters.master.peakRight)}%`}></i></div></div><div class="master-footer"><span title={endpointLabel(config.masterOutputDeviceId,'System default')}>{endpointLabel(config.masterOutputDeviceId,'System default')}</span><span>Limiter −0.1 dBFS</span></div></section>
     </div>
   </section>
 
@@ -1115,4 +1173,14 @@
   onClose={() => (categoryModalBus = null)}
   {onRouteProcess}
   {onUnrouteProcess}
+/>
+
+<DevicePickerModal
+  open={devicePicker !== null}
+  kind={devicePicker ?? 'output'}
+  {endpoints}
+  currentId={devicePicker === 'input' ? config.physicalMicDeviceId : config.masterOutputDeviceId}
+  onSelect={pickDevice}
+  onClose={() => (devicePicker = null)}
+  onRefresh={onRefreshDevices}
 />

@@ -14,7 +14,7 @@ use crate::interop::sessions::{
 };
 use crate::interop::autostart;
 use crate::interop::sessions::device_mix_rate;
-use crate::state::app_settings::AppSettings;
+use crate::state::app_settings::{AppSettings, ThemeMode};
 use crate::state::backup::{self, BackupInfo, BackupKind};
 use crate::state::health::{estimate_latency_ms, HealthCheck};
 use crate::state::logging;
@@ -74,6 +74,16 @@ impl AppState {
         let meter_pacing = Arc::new(MeterPacing::new());
         meter_pacing.set_saving_enabled(settings.save_resources_in_background);
         let mut initial_cfg = RouterConfig::load_from_path(&config_path);
+        // One time, when an existing install updates: the Monitor output slider is now the device
+        // volume, so the old software gain goes back to 1.0.
+        if !settings.master_gain_reset {
+            if initial_cfg.master_volume != 1.0 {
+                initial_cfg.master_volume = 1.0;
+                let _ = initial_cfg.save_to_path(&config_path);
+            }
+            settings.master_gain_reset = true;
+            let _ = settings.save_to_path(&settings_path);
+        }
         let startup_endpoints = enumerate_audio_endpoints().ok();
         if let Some(endpoints) = &startup_endpoints {
             if is_first_run {
@@ -378,6 +388,27 @@ pub fn set_master_volume(state: State<'_, AppState>, volume: f32) -> Result<f32,
     Ok(volume.clamp(0.0, 2.0))
 }
 
+fn monitor_device_id(state: &State<'_, AppState>) -> Option<String> {
+    let engine = state.current_engine();
+    let id = engine.config.lock().ok().and_then(|cfg| cfg.master_output_device_id.clone());
+    id
+}
+
+/// Windows volume of the monitor output device (or the Windows default output when none is set).
+#[tauri::command]
+pub fn get_monitor_hardware_volume(
+    state: State<'_, AppState>,
+) -> Result<crate::interop::endpoint_volume::OutputVolume, String> {
+    let id = monitor_device_id(&state);
+    crate::interop::endpoint_volume::get_output_volume(id.as_deref())
+}
+
+#[tauri::command]
+pub fn set_monitor_hardware_volume(state: State<'_, AppState>, volume: f32) -> Result<f32, String> {
+    let id = monitor_device_id(&state);
+    crate::interop::endpoint_volume::set_output_volume(id.as_deref(), volume)
+}
+
 fn validate_stream_destination(cfg: &RouterConfig, stream: &StreamConfig) -> Result<(), String> {
     if !stream.enabled || stream.muted {
         return Ok(());
@@ -619,28 +650,25 @@ pub fn set_audio_devices(
     Ok(updated_cfg)
 }
 
+/// Changes the Windows default playback or recording device (whichever `device_id` is).
 #[tauri::command]
-pub fn get_nvidia_recording_status() -> crate::interop::nvidia::NvidiaRecordingStatus {
-    crate::interop::nvidia::get_nvidia_recording_status()
-}
-
-/// `device_id` = None / empty restores the Windows default microphone for NVIDIA recording.
-#[tauri::command]
-pub fn set_nvidia_recording_mic(
-    device_id: Option<String>,
-) -> Result<crate::interop::nvidia::NvidiaRecordingStatus, String> {
-    match device_id.filter(|s| !s.trim().is_empty()) {
-        Some(id) => {
-            let endpoints = enumerate_audio_endpoints()?;
-            let ep = endpoints
-                .iter()
-                .find(|e| e.id == id && e.flow == "Capture")
-                .ok_or_else(|| "Selected microphone is no longer available".to_string())?;
-            crate::interop::nvidia::set_nvidia_recording_mic(Some((&ep.id, &ep.name)))?;
-        }
-        None => crate::interop::nvidia::set_nvidia_recording_mic(None)?,
+pub fn set_windows_default_device(state: State<'_, AppState>, device_id: String) -> Result<(), String> {
+    let endpoints = enumerate_audio_endpoints()?;
+    let target = endpoints
+        .iter()
+        .find(|e| e.id == device_id)
+        .ok_or_else(|| "That device is no longer available".to_string())?;
+    crate::interop::default_device::set_default_endpoint(&target.id)?;
+    logging::info(&format!("Windows default {} device set to '{}'", target.flow, target.name));
+    // When Stellars follows the Windows default, restart so it moves to the new device.
+    let follows_default = state.current_engine().config.lock().is_ok_and(|cfg| match target.flow.as_str() {
+        "Render" => cfg.master_output_device_id.is_none(),
+        _ => cfg.physical_mic_device_id.is_none(),
+    });
+    if follows_default {
+        state.restart_engine()?;
     }
-    Ok(crate::interop::nvidia::get_nvidia_recording_status())
+    Ok(())
 }
 
 #[tauri::command]
@@ -882,10 +910,13 @@ pub fn set_app_settings(
 fn apply_app_settings(
     app: &tauri::AppHandle,
     state: &AppState,
-    settings: AppSettings,
+    mut settings: AppSettings,
 ) -> Result<AppSettings, String> {
     use tauri::Manager;
 
+    // The theme has its own command; the settings form does not carry it.
+    settings.theme = state.app_settings().theme;
+    settings.master_gain_reset = state.app_settings().master_gain_reset;
     if settings.launch_on_startup != autostart::is_enabled() {
         autostart::set_enabled(settings.launch_on_startup)?;
     }
@@ -900,6 +931,22 @@ fn apply_app_settings(
         *current = settings.clone();
     }
     Ok(settings)
+}
+
+/// Remembers the window's colour theme so the native tray menu can match it.
+#[tauri::command]
+pub fn set_app_theme(state: State<'_, AppState>, theme: ThemeMode) -> Result<(), String> {
+    let mut settings = state.app_settings();
+    if settings.theme == theme {
+        return Ok(());
+    }
+    settings.theme = theme;
+    settings.save_to_path(&state.settings_path)?;
+    if let Ok(mut current) = state.settings.lock() {
+        current.theme = theme;
+    }
+    crate::tray::notify_menu_changed();
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize)]

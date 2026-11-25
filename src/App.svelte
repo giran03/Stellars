@@ -46,18 +46,29 @@
   } from "./types";
 
   type Theme = "dark" | "light";
+  type ThemePref = Theme | "system";
   const THEME_KEY = "stellars-theme";
-  let theme = $state<Theme>("dark");
-  function setTheme(next: Theme) {
-    theme = next;
-    document.documentElement.dataset.theme = next;
-    document.documentElement.style.colorScheme = next;
+  const systemQuery = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-color-scheme: light)") : null;
+  let themePref = $state<ThemePref>("dark");
+  let systemLight = $state(systemQuery?.matches ?? false);
+  // What is actually shown: "system" follows Windows.
+  let theme = $derived<Theme>(themePref === "system" ? (systemLight ? "light" : "dark") : themePref);
+  $effect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  });
+  function setTheme(next: ThemePref) {
+    themePref = next;
     try { localStorage.setItem(THEME_KEY, next); } catch {}
+    // The native tray menu draws itself in the same theme.
+    if (isNativeApp()) void invoke("set_app_theme", { theme: next }).catch(() => {});
   }
   onMount(() => {
     let saved: string | null = null;
     try { saved = localStorage.getItem(THEME_KEY); } catch {}
-    setTheme(saved === "light" ? "light" : "dark");
+    setTheme(saved === "light" || saved === "system" ? saved : "dark");
+    const onSystemChange = (e: MediaQueryListEvent) => { systemLight = e.matches; };
+    systemQuery?.addEventListener("change", onSystemChange);
     const handleKeydown = (e: KeyboardEvent) => {
       if (e.altKey && (e.key === "t" || e.key === "T")) {
         e.preventDefault();
@@ -65,7 +76,10 @@
       }
     };
     window.addEventListener("keydown", handleKeydown);
-    return () => window.removeEventListener("keydown", handleKeydown);
+    return () => {
+      window.removeEventListener("keydown", handleKeydown);
+      systemQuery?.removeEventListener("change", onSystemChange);
+    };
   });
   function toggleTheme() { setTheme(theme === "dark" ? "light" : "dark"); }
 
@@ -506,6 +520,7 @@
   let settingsTab: SettingsTabId = $state("general");
   let wizardOpen: boolean = $state(false);
   let appSettingsLoaded = $state(false);
+  let settingsShowChangelog = $state(false);
   function openSettings(tab?: SettingsTabId) {
     if (tab) settingsTab = tab;
     settingsOpen = true;
@@ -1302,11 +1317,12 @@
       void pending.then((off) => (disposed ? off() : unlisteners.push(off))).catch(() => {});
 
     track(
-      listen<{ added: string[]; removed: string[]; reconnected: boolean }>("devices-changed", (event) => {
-        const { added, removed, reconnected } = event.payload;
+      listen<{ added: string[]; removed: string[]; reconnected: boolean; fellBack: boolean }>("devices-changed", (event) => {
+        const { added, removed, reconnected, fellBack } = event.payload;
         const parts: string[] = [];
         if (removed.length) parts.push(`Unplugged: ${removed.join(", ")}`);
         if (added.length) parts.push(`Connected: ${added.join(", ")}`);
+        if (fellBack) parts.push("switched to the Windows default · returns when it is back");
         if (reconnected) parts.push("routing restored");
         if (parts.length) showToast(parts.join(" · "));
         void loadRouterState();
@@ -1334,8 +1350,21 @@
     void startUpdates((release) =>
       showToast(`Stellars ${release.version} is available`, { label: "View", run: () => openSettings("updates") })
     );
-    void invoke<{ recoveredFromCrash?: boolean }>("get_app_info")
+    void invoke<{ recoveredFromCrash?: boolean; version?: string }>("get_app_info")
       .then((info) => {
+        // After an update, point to what changed. A first install has nothing to compare with.
+        const VERSION_KEY = "stellars-last-version";
+        let last: string | null = null;
+        try { last = localStorage.getItem(VERSION_KEY); } catch {}
+        if (info.version) {
+          try { localStorage.setItem(VERSION_KEY, info.version); } catch {}
+          if (last && last !== info.version) {
+            showToast(`Stellars updated to ${info.version}`, {
+              label: "What’s new",
+              run: () => { settingsShowChangelog = true; openSettings("updates"); },
+            });
+          }
+        }
         if (info.recoveredFromCrash) showToast("Stellars didn’t close properly last time · app audio routing was reset to be safe");
       })
       .catch(() => {});
@@ -1689,6 +1718,8 @@
     <div class="engine-status" role="status"><span>{statusMessage}</span><span>Mic {isTauriConnected?(diagnostics.micRunning?'active':'standby'):'demo'} · Underruns {diagnostics.underrunCount}</span></div>
   <MixerView
     native={isTauriConnected}
+    onChangeDevices={handleDevices}
+    onRefreshDevices={refreshStreamDevices}
     {config}
     {endpoints}
     {processes}
@@ -1736,8 +1767,9 @@
 <SettingsModal
   open={settingsOpen}
   bind:tab={settingsTab}
+  bind:showChangelog={settingsShowChangelog}
   native={isTauriConnected}
-  {theme}
+  theme={themePref}
   onSetTheme={setTheme}
   onClose={() => (settingsOpen = false)}
   onNotify={showToast}
@@ -1752,12 +1784,12 @@
   }}
 >
   {#snippet audio()}
-    {@render hardware(settingsOpen && settingsTab === "audio")}
+    {@render hardware()}
   {/snippet}
 </SettingsModal>
 <SetupWizard open={wizardOpen} native={isTauriConnected} onFinish={() => (wizardOpen = false)}>
   {#snippet devices()}
-    {@render hardware(wizardOpen)}
+    {@render hardware()}
   {/snippet}
 </SetupWizard>
 <ModePrompt
@@ -1768,10 +1800,8 @@
   }}
   ondismiss={() => void updateAppSettings({ interfaceModeChosen: true })}
 />
-{#snippet hardware(active: boolean)}
+{#snippet hardware()}
   <HardwareSettings
-    native={isTauriConnected}
-    {active}
     {config}
     {endpoints}
     {cableStatus}

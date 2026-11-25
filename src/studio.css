@@ -2149,3 +2149,40 @@ code {
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* Monitor output: the level slider and the stereo peak meter are one control. The meter sits
+   flush under the slider rail; the tick marks 100% (unity) on the rail. */
+.master-fader { position: relative; margin: 15px 0 12px; }
+.master-fader .horizontal-range { margin: 0; }
+.master-fader .master-stereo { margin-top: 7px; height: 8px; gap: 2px; background: none; box-shadow: none; }
+.master-fader .master-stereo i { height: 3px; border-radius: 2px; }
+.master-fader .master-stereo i.clip { background: #ff6b81; }
+:root[data-theme="light"] .master-fader .master-stereo { background: none; box-shadow: none; }
+:root[data-theme="light"] .master-fader .master-stereo i.clip { background: #d6304a; }
+
+/* Quick device pickers */
+.channel-mic-source-btn { background: transparent; border: 0; padding: 0 4px; text-align: left; cursor: pointer; border-radius: 7px; transition: background-color 150ms ease, color 150ms ease; }
+.channel-mic-source-btn > svg { flex-shrink: 0; opacity: 0.55; margin-left: auto; transition: opacity 150ms ease; }
+.channel-mic-source-btn:hover { background: #ffffff0d; color: #f5eef8; }
+.channel-mic-source-btn:hover > svg { opacity: 1; }
+.master-device-btn {
+  display: inline-grid; place-items: center; width: 24px; height: 24px; min-height: 0; padding: 0; margin-left: 2px;
+  border-radius: 7px; background: #ffffff10; color: inherit; opacity: 0.75;
+  transition: background-color 150ms ease, opacity 150ms ease;
+}
+.master-device-btn:hover { background: #ffffff22; opacity: 1; }
+:root[data-theme="light"] .channel-mic-source-btn:hover { background: rgba(35, 28, 56, 0.07); color: var(--text); }
+:root[data-theme="light"] .master-device-btn { background: rgba(0, 77, 64, 0.12); }
+:root[data-theme="light"] .master-device-btn:hover { background: rgba(0, 77, 64, 0.2); }
+
+.master-mode {
+  display: inline-flex; margin-left: 6px; padding: 2px; gap: 2px; border-radius: 999px; background: rgba(0,0,0,.22);
+}
+.master-mode button {
+  min-height: 0; height: 20px; padding: 0 9px; border-radius: 999px; font-size: 10px; font-weight: 600;
+  letter-spacing: .02em; background: transparent; color: inherit; opacity: .6; box-shadow: none;
+}
+.master-mode button:hover { opacity: .9; }
+.master-mode button.on { background: rgba(255,255,255,.16); opacity: 1; }
+:root[data-theme="light"] .master-mode { background: rgba(0,0,0,.08); }
+:root[data-theme="light"] .master-mode button.on { background: rgba(255,255,255,.85); }

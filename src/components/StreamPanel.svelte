@@ -191,7 +191,8 @@
       <label for="stream-volume">Stream level <strong><EditableValue value={stream.volume*100} min={0} max={150} step={1} unit="%" label="Stream level" disabled={saving} oncommit={v=>onSave({...copy(stream),volume:v/100})}/> <EditableValue value={stream.volume>0?20*Math.log10(stream.volume):-60} min={-60} max={3.521825} step={.1} unit="dB" display={stream.volume>0?(20*Math.log10(stream.volume)).toFixed(2)+" dB":"−∞ dB"} label="Stream gain" disabled={saving} allowSilence oncommit={v=>onSave({...copy(stream),volume:Math.pow(10,v/20)})} onsilence={()=>onSave({...copy(stream),volume:0})}/></strong></label>
       <input id="stream-volume" class="horizontal-range" type="range" min="0" max="1.5" step="0.01" value={stream.volume}
         disabled={saving} aria-label="Stream output volume"
-        onchange={e => onSave({ ...copy(stream), volume: Number(e.currentTarget.value) })} />
+        onchange={e => onSave({ ...copy(stream), volume: Number(e.currentTarget.value) })}
+        ondblclick={e => { e.currentTarget.value = "1"; onSave({ ...copy(stream), volume: 1 }); }} />
       <div class="meter" role="meter" aria-label="Stream stereo peak" aria-valuemin="0" aria-valuemax="100"
         aria-valuenow={Math.round(Math.min(1, Math.max(meter.peakLeft, meter.peakRight)) * 100)}>
         <span style:width={`${Math.min(100, meter.peakLeft * 100)}%`}></span>

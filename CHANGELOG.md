@@ -15,11 +15,30 @@ All notable changes to Stellars are recorded here, newest version first.
 
 ### Added
 
+- Settings → Audio shows the Windows default output and input, and lets you change them there.
+- Double-click the Stream level slider to reset it to 100%.
+- A quick device picker: a swap button on Monitor output and on the microphone name in the Mic channel opens a pop-up to choose the headphones/speakers or the microphone without opening Settings. It includes a "Windows default" choice.
+- The tray menu shows a live status in its header (a pulsing dot while audio is running, "All muted" / "Mic muted" when muted) and keeps itself up to date while it is open.
+- The tray menu has a hint on each row where it helps ("Left click" on Open Stellars, "None saved" when there are no scenes) and groups its actions into clear sections.
+- A "System" theme option follows the Windows light or dark setting and changes live with it (Settings → Appearance).
+- The tray icon shows a small badge when audio is muted (red for all channels, amber for the microphone only), and its tooltip says so.
+- After Stellars updates, a notice offers a "What's new" button that opens the change log.
+
 ### Changed
+
+- The Monitor output slider and its stereo level meter are now one control: the meter sits right under the slider and a bar turns red when that channel clips.
+- The Monitor output slider now sets the Windows volume of the output device itself (0 to 100%, the same level as the Windows volume mixer) instead of a separate 0 to 150% boost, and follows the volume keys and the Windows mixer. A Device / Gain switch next to the title changes the slider to the old software gain (0 to 150%) and back. When you update, the software gain is reset to 100% once.
+- When the output or microphone in use is unplugged, Stellars moves to the Windows default device right away and says so, then switches back by itself when the device returns (needs "Reconnect devices automatically").
+- Only one copy of Stellars can run at a time. Starting it again brings the running window to the front instead of opening a second one.
+- The tray menu is now a lightweight native Windows menu that follows the app's light or dark theme. It opens instantly and no longer starts a background web view.
 
 ### Fixed
 
+- Tooltips no longer get stuck half see-through; they always finish fading in.
+
 ### Removed
+
+- The "NVIDIA recording microphone" setting (Settings → Audio). Stellars no longer reads or changes NVIDIA's recording microphone; pick it in the NVIDIA overlay instead.
 
 ---
 

@@ -14,12 +14,10 @@ window.addEventListener(
 );
 
 const params = new URLSearchParams(window.location.search);
-if (!params.has("mock") && params.get("view") !== "tray") installDragScroll();
+if (!params.has("mock")) installDragScroll();
 const app = (params.has("mock")
   ? import("./mock/MockConsole.svelte")
-  : params.get("view") === "tray"
-    ? import("./TrayMenu.svelte")
-    : import("./App.svelte")
+  : import("./App.svelte")
 ).then(({ default: App }) => mount(App, {
   target: document.getElementById("app")!,
 }));
